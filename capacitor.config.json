@@ -1,0 +1,7 @@
+{
+  "appId": "com.squadra.vetados",
+  "appName": "Squadra Vetados",
+  "webDir": "www",
+  "backgroundColor": "#03264C",
+  "android": { "allowMixedContent": false }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "47071596464",
+    "project_id": "squadra-vetados",
+    "storage_bucket": "squadra-vetados.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47071596464:android:ef1e979e1147ab7ca35075",
+        "android_client_info": {
+          "package_name": "com.squadra.vetados"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBf7R8I0bINjp11FDEaapLeXyhym86U1sM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

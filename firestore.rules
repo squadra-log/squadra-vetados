@@ -1,0 +1,43 @@
+rules_version = '2';
+// Reglas de seguridad de Squadra Vetados.
+// Sin una cuenta activa no se puede leer ni escribir nada.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function cuentaPath() { return /databases/$(database)/documents/cuentas/$(request.auth.uid); }
+    function tieneCuenta() { return signedIn() && exists(cuentaPath()); }
+    function yo() { return get(cuentaPath()).data; }
+    function activo() { return tieneCuenta() && yo().activo == true; }
+    function admin() { return activo() && yo().rol in ['admin', 'supremo']; }
+    function soporte() { return activo() && yo().rol == 'supremo'; }
+    function listoPath() { return /databases/$(database)/documents/sistema/listo; }
+
+    // Marca de que ya se creó la primera cuenta de Soporte
+    match /sistema/listo {
+      allow read: if true;
+      allow create: if signedIn() && !exists(listoPath())
+        && getAfter(cuentaPath()).data.rol == 'supremo';
+      allow update, delete: if false;
+    }
+
+    match /cuentas/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || soporte());
+      // Soporte crea cuentas; o la primera cuenta de Soporte durante la configuración inicial
+      allow create: if soporte()
+        || (signedIn() && request.auth.uid == uid
+            && !exists(listoPath()) && existsAfter(listoPath())
+            && request.resource.data.rol == 'supremo' && request.resource.data.activo == true);
+      allow update, delete: if soporte();
+    }
+
+    match /personas/{pid} {
+      allow read: if activo();
+      allow create, update: if admin();
+      allow delete: if soporte();
+      match /fotos/{fid} {
+        allow read: if activo();
+        allow create, update, delete: if admin();
+      }
+    }
+  }
+}

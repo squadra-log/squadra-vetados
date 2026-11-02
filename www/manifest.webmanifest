@@ -1,0 +1,16 @@
+{
+  "name": "Squadra Vetados",
+  "short_name": "Vetados",
+  "description": "Control de ingreso de Squadra: personas vetadas y desvetadas.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#03264C",
+  "theme_color": "#03264C",
+  "lang": "es",
+  "icons": [
+    { "src": "img/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "img/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

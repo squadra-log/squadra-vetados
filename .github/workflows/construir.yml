@@ -1,0 +1,75 @@
+name: Construir APK y página web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: construir
+  cancel-in-progress: true
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_VERSION: 10.14.1
+      KS_PASS: SquadraVetados2026
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+
+      - name: Descargar Firebase dentro de la app (funciona sin depender de internet al abrir)
+        run: |
+          mkdir -p www/vendor
+          for f in app auth firestore; do
+            curl -fsSL -o www/vendor/firebase-$f-compat.js https://www.gstatic.com/firebasejs/$FIREBASE_VERSION/firebase-$f-compat.js
+          done
+
+      - name: Crear proyecto Android
+        run: |
+          npx cap add android
+          npx @capacitor/assets generate --android --iconBackgroundColor '#03264C' --iconBackgroundColorDark '#03264C' --splashBackgroundColor '#03264C' --splashBackgroundColorDark '#03264C'
+          cp native/MainActivity.java native/SeguridadPlugin.java android/app/src/main/java/com/squadra/vetados/
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          npx cap sync android
+
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Firmar APK
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/zipalign -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk alineado.apk
+          $BT/apksigner sign --ks keystore/squadra.jks --ks-key-alias squadra --ks-pass env:KS_PASS --key-pass env:KS_PASS --out SquadraVetados.apk alineado.apk
+          $BT/apksigner verify SquadraVetados.apk
+          cp SquadraVetados.apk www/SquadraVetados.apk
+
+      - name: Guardar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SquadraVetados-apk
+          path: SquadraVetados.apk
+
+      - name: Publicar página web (con el APK para descargar)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./www
+          force_orphan: true
