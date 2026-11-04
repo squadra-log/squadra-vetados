@@ -13,7 +13,7 @@ function faceTxt(p){return p.thumb?"":(p.name&&p.name.trim()?esc(ini(p.name)):IC
 function span(n){n=Math.abs(n);if(n===0)return "hoy";if(n===1)return "1 día";if(n<14)return n+" días";if(n<60){var w=Math.round(n/7);return w+(w===1?" semana":" semanas")}var m=Math.round(n/30.4);if(m<12)return m+(m===1?" mes":" meses");var y=Math.floor(n/365),r=Math.round((n-y*365)/30.4);return y+(y===1?" año":" años")+(r?" y "+r+(r===1?" mes":" meses"):"")}
 function norm(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim()}
 function days(a,b){return Math.round((parse(b)-parse(a))/864e5)}
-function lugares(){var seen={},out=[];S.people.forEach(function(p){p.vetos.forEach(function(v){var k=norm(v.lugar);if(k&&!seen[k]){seen[k]=1;out.push(v.lugar)}})});return '<datalist id="lugares">'+out.sort().map(function(x){return '<option value="'+esc(x)+'"></option>'}).join("")+'</datalist>'}
+function lugares(){var seen={},out=VENUES.slice();VENUES.forEach(function(x){seen[norm(x)]=1});S.people.forEach(function(p){p.vetos.forEach(function(v){var k=norm(v.lugar);if(k&&!seen[k]){seen[k]=1;out.push(v.lugar)}})});return '<datalist id="lugares">'+out.sort().map(function(x){return '<option value="'+esc(x)+'"></option>'}).join("")+'</datalist>'}
 function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function ini(n){return n.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]}).join("").toUpperCase()}
 var L = "";
@@ -22,6 +22,20 @@ function roleTag(c){return c.off?'<span class="tag r">DESACTIVADA</span>':c.role
 var S = {people:[],accounts:[],photoCache:{},ready:false,busy:"",offline:false,menu:false,me:null,share:false,acc:null,confirmDel:false,role:null,view:"start",tab:"vetados",q:"",id:null,photo:0,form:null,err:""};
 
 function last(p){return p.vetos[p.vetos.length-1]}
+var LOCALES=[
+  {k:"solar",t:"Solar",d:"Solar · Sinsed",full:"Solar y Sinsed"},
+  {k:"trio",t:"El Trío",d:"Tremenda · Delirio · Escobar",full:"El Trío (Tremenda, Delirio y Escobar)"},
+  {k:"once",t:"Once Once",d:"Once Once",full:"Once Once"},
+  {k:"otros",t:"Otros",d:"Otros locales",full:"Otros locales"}];
+var VENUES=["Solar","Sinsed","Tremenda","Delirio","Escobar","Once Once"];
+var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+function locs(v){var l=v&&v.locales;return l&&l.length?l:["todos"]}
+function inLocal(p,k){if(k==="todos")return true;var l=locs(last(p));return l.indexOf("todos")>=0||l.indexOf(k)>=0}
+function locText(v,short){var l=locs(v);if(l.indexOf("todos")>=0)return "Todos los locales";return l.map(function(k){var o=LOCALES.filter(function(x){return x.k===k})[0];return o?(short?o.t:o.full):k}).join(", ")}
+function locChips(sel,attr){var all=sel.indexOf("todos")>=0;
+  return '<div class="chips">'+'<button type="button" class="chipb" '+attr+'="todos" aria-pressed="'+all+'">Todos los locales</button>'+LOCALES.map(function(o){return '<button type="button" class="chipb" '+attr+'="'+o.k+'" aria-pressed="'+(!all&&sel.indexOf(o.k)>=0)+'">'+o.t+(o.k==="trio"||o.k==="solar"?' <span style="font-weight:400;opacity:.75">('+o.d.replace(/ · /g,", ")+')</span>':'')+'</button>'}).join("")+'</div>'}
+function toggleLoc(arr,k){if(k==="todos")return ["todos"];var a=arr.filter(function(x){return x!=="todos"});var i=a.indexOf(k);if(i>=0)a.splice(i,1);else a.push(k);return a.length?a:["todos"]}
+try{S.loc=localStorage.getItem("squadra.loc")||"todos"}catch(_){S.loc="todos"}
 function active(p){var v=last(p);return !v.hasta || v.hasta>TODAY}
 function face(p){return p.thumb?"background-image:url("+p.thumb+")":"background:"+p.color}
 function find(id){return S.people.filter(function(p){return p.id===id})[0]}
@@ -63,7 +77,7 @@ function vLogin(){return vStart()}
 
 function vList(){
   var admin=S.role==="admin", q=norm(S.q.trim());
-  var ps=S.people.filter(function(p){return !q||norm(p.name||"").indexOf(q)>=0});
+  var ps=S.people.filter(function(p){return inLocal(p,S.loc)&&(!q||norm(p.name||"").indexOf(q)>=0)});
   var soon=S.people.filter(function(p){var v=last(p);return active(p)&&v.hasta&&days(TODAY,v.hasta)<=7}).length;
   if(S.tab==="vetados")ps=ps.filter(active).sort(function(a,b){return last(b).desde<last(a).desde?-1:1});
   else if(S.tab==="desvetados")ps=ps.filter(function(p){return !active(p)}).sort(function(a,b){return last(b).hasta<last(a).hasta?-1:1});
@@ -72,12 +86,17 @@ function vList(){
   var h=(S.offline?'<div class="offline">Sin internet: está viendo lo último que se cargó.</div>':'')+'<div class="top"><div class="row between"><div class="row"><img class="logo" alt="Squadra Servicios Logísticos" src="'+ICON+'\"><div><div class="eyebrow">Squadra · Control de ingreso</div><h1>Vetados</h1></div></div><div class="row" style="gap:8px">'+(S.me&&S.me.role==="supremo"?'<button class="iconbtn" data-go="accounts" aria-label="Cuentas">'+IC.users+'</button>':'')+'<button class="iconbtn" data-menu="1" aria-label="Mi cuenta">'+IC.exit+'</button><button class="iconbtn" data-go="historial" aria-label="Ver historial">'+IC.hist+'</button></div></div>'+
    (admin?'<span class="role admin">'+(S.me.role==="supremo"?"SOPORTE":"ADMINISTRADOR")+' · '+esc(S.me.name).toUpperCase()+'</span>':'<span class="role view">CONSULTA · '+esc(S.me.name).toUpperCase()+'</span>')+
    '<label class="search" for="q">'+IC.search+'<input id="q" type="search" placeholder="Buscar por nombre" value="'+esc(S.q)+'"></label></div>';
-  h+='<div class="tabs" role="group" aria-label="Filtro">'+["vetados","desvetados","todos"].map(function(t){return '<button class="tab" data-tab="'+t+'" aria-pressed="'+(S.tab===t)+'">'+t[0].toUpperCase()+t.slice(1)+'</button>'}).join("")+'</div>';
+  h+='<div class="locs" role="group" aria-label="Local">'+LOCALES.concat([{k:"todos",t:"Todos",d:"Todos los locales"}]).map(function(o){var n=S.people.filter(function(p){return inLocal(p,o.k)&&active(p)}).length;return '<button class="loc" data-loc="'+o.k+'" aria-pressed="'+(S.loc===o.k)+'"><span class="lt">'+o.t+' <span class="ln">'+n+'</span></span><span class="ld">'+o.d+'</span></button>'}).join("")+'</div>';
+  h+='<div class="tabs" role="group" aria-label="Estado">'+["vetados","desvetados","todos"].map(function(t){return '<button class="tab" data-tab="'+t+'" aria-pressed="'+(S.tab===t)+'">'+t[0].toUpperCase()+t.slice(1)+'</button>'}).join("")+'</div>';
   var word=S.tab==="todos"?(ps.length===1?"persona":"personas"):(ps.length===1?S.tab.slice(0,-1):S.tab);
-  h+='<div class="count">'+ps.length+' '+word+' · por <b>'+sortLbl+'</b>, más reciente primero'+(S.tab==="vetados"&&soon&&!q?'<br><span style="color:var(--greentext);font-weight:600">'+soon+(soon===1?" se desveta":" se desvetan")+' en los próximos 7 días</span>':'')+'</div><div class="grid">';
+  h+='<div class="count">'+ps.length+' '+word+(S.loc!=="todos"?' en <b>'+esc(LOCALES.filter(function(o){return o.k===S.loc})[0].full)+'</b>':'')+' · por <b>'+sortLbl+'</b>, más reciente primero'+(S.tab==="vetados"&&soon&&!q?'<br><span style="color:var(--greentext);font-weight:600">'+soon+(soon===1?" se desveta":" se desvetan")+' en los próximos 7 días</span>':'')+'</div><div class="grid">';
   if(!S.ready)h+='<div class="empty"><div class="spin" style="margin:0 auto 10px"></div>Cargando…</div>';else if(!ps.length)h+='<div class="empty">'+(q?"Nadie con ese nombre en esta lista."+(S.tab!=="todos"?' <br><button class="tab" data-tab="todos" style="margin-top:10px">Buscar en Todos</button>':''):"No hay personas en esta lista.")+'</div>';
+  var lastMonth="";
   ps.forEach(function(p){var a=active(p),v=last(p),n=p.vetos.length;
-    h+='<button class="tile" data-open="'+p.id+'"><span class="face" style="'+face(p)+'">'+faceTxt(p)+(n>1&&a?'<span class="nth">'+n+'° veto</span>':'')+'<span class="badge '+(a?"r":"g")+'">'+(a?"VETADO":"DESVETADO")+'</span></span><span class="tname">'+esc(nm(p))+'</span><span class="tsub">'+(a?"desde "+fmt(v.desde):"desde "+fmt(v.hasta))+'</span>'+(a&&v.hasta&&days(TODAY,v.hasta)<=7?'<span class="tsub" style="color:var(--greentext);font-weight:600">sale en '+span(days(TODAY,v.hasta))+'</span>':'')+'</button>'});
+    var md=(S.tab==="desvetados"?v.hasta:v.desde)||"",mk=md.slice(0,7);
+    if(mk&&mk!==lastMonth){lastMonth=mk;var cnt=ps.filter(function(x){var y=last(x);return ((S.tab==="desvetados"?y.hasta:y.desde)||"").slice(0,7)===mk}).length;
+      h+='<div class="month"><span>'+MESES[+mk.slice(5,7)-1]+' '+mk.slice(0,4)+'</span><span class="mc">'+cnt+'</span></div>'}
+    h+='<button class="tile" data-open="'+p.id+'"><span class="face" style="'+face(p)+'">'+faceTxt(p)+(n>1&&a?'<span class="nth">'+n+'° veto</span>':'')+'<span class="badge '+(a?"r":"g")+'">'+(a?"VETADO":"DESVETADO")+'</span></span><span class="tname">'+esc(nm(p))+'</span><span class="tsub">'+(a?"desde "+fmt(v.desde):"desde "+fmt(v.hasta))+'</span>'+(a&&v.hasta&&days(TODAY,v.hasta)<=7?'<span class="tsub" style="color:var(--greentext);font-weight:600">sale en '+span(days(TODAY,v.hasta))+'</span>':'')+(S.loc==="todos"&&a?'<span class="tloc">'+esc(locText(v,true))+'</span>':'')+'</button>'});
   h+='</div>';
   if(admin)h+='<button class="fab" data-new="1">'+IC.plus+'Nuevo veto</button>';
   return h;
@@ -97,13 +116,14 @@ function vDetail(){
     var dd=days(v.desde,TODAY);
     h+='<div class="two"><div class="card"><span class="tsub">Fecha de veto</span><span class="big">'+fmt(v.desde)+'</span><span class="tsub">'+(dd===0?"hoy":"lleva "+span(dd)+" de veto")+'</span></div>'+
       (v.hasta?'<div class="card ok"><span class="tsub" style="color:inherit">Se desveta el</span><span class="big">'+fmt(v.hasta)+'</span><span class="tsub" style="color:inherit">faltan '+span(days(TODAY,v.hasta))+'</span></div>':'<div class="card dashed"><span class="tsub">Fecha de desveto</span><span class="big" style="color:var(--muted)">Sin definir</span></div>')+'</div>';
+    h+='<div class="card"><span class="lbl">Vetado en</span><span style="font-weight:600">'+esc(locText(v))+'</span></div>';
     h+='<div class="card"><span class="lbl">Motivo</span><span style="line-height:1.45'+(v.motivo?'':';color:var(--muted)')+'">'+(v.motivo?esc(v.motivo):'Sin motivo registrado')+'</span></div>';
     if(v.lugar)h+='<div class="card" style="flex-direction:row;align-items:center;gap:12px"><span style="color:var(--muted)">'+IC.pin+'</span><span style="display:flex;flex-direction:column;gap:2px"><span class="lbl">Lugar del problema</span><span>'+esc(v.lugar||"")+'</span></span></div>';
   } else {
     h+='<div class="two"><div class="card"><span class="tsub">Último veto</span><span class="big">'+fmt(v.desde)+'</span></div><div class="card ok"><span class="tsub" style="color:inherit">Desvetado el</span><span class="big">'+fmt(v.hasta)+'</span></div></div>';
   }
   var list=p.vetos.map(function(x,k){return {x:x,k:k}}).reverse();
-  h+='<div class="card" style="gap:12px"><span class="lbl">Vetos de esta persona ('+n+')</span>'+list.map(function(o){var on=a&&o.k===n-1;return '<div class="vrow"><span class="num'+(on?" on":"")+'">'+(o.k+1)+'°</span><span style="display:flex;flex-direction:column;gap:2px"><span class="t">'+fmt(o.x.desde)+' → '+(o.x.hasta?fmt(o.x.hasta):"sin definir")+'</span><span class="s">Duración: '+(o.x.hasta?span(days(o.x.desde,o.x.hasta)):"sin definir (lleva "+span(days(o.x.desde,TODAY))+")")+'</span>'+(o.x.motivo?'<span class="s">Motivo: '+esc(o.x.motivo)+'</span>':'')+(o.x.lugar?'<span class="s">Lugar: '+esc(o.x.lugar)+'</span>':'')+'</span></div>'}).join("")+'</div>';
+  h+='<div class="card" style="gap:12px"><span class="lbl">Vetos de esta persona ('+n+')</span>'+list.map(function(o){var on=a&&o.k===n-1;return '<div class="vrow"><span class="num'+(on?" on":"")+'">'+(o.k+1)+'°</span><span style="display:flex;flex-direction:column;gap:2px"><span class="t">'+fmt(o.x.desde)+' → '+(o.x.hasta?fmt(o.x.hasta):"sin definir")+'</span><span class="s">Duración: '+(o.x.hasta?span(days(o.x.desde,o.x.hasta)):(days(o.x.desde,TODAY)===0?"sin definir (empezó hoy)":"sin definir (lleva "+span(days(o.x.desde,TODAY))+")"))+'</span><span class="s">Vetado en: '+esc(locText(o.x,true))+'</span>'+(o.x.motivo?'<span class="s">Motivo: '+esc(o.x.motivo)+'</span>':'')+(o.x.lugar?'<span class="s">Lugar: '+esc(o.x.lugar)+'</span>':'')+'</span></div>'}).join("")+'</div>';
   if(admin&&a){
     h+='<div class="card" style="gap:10px"><label class="field" for="dv">Fecha de desveto<input id="dv" type="date" value="'+(v.hasta||TODAY)+'"></label>'+(S.err?'<span class="err">'+S.err+'</span>':'')+'<button class="btn green" data-desvetar="1">Guardar desveto</button></div>';
   } else if(admin){
@@ -118,8 +138,8 @@ function photoBox(list,delAttr,inputId,note){
   return '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:600">Fotos <span style="color:var(--redtext)">(obligatorio, mínimo una)</span></span><div class="thumbs" style="gap:12px">'+list.map(function(o,k){return '<span style="position:relative"><span class="thumb" style="display:block;width:76px;height:76px;border-radius:14px;background-image:url('+o.src+')"></span>'+(o.del?'<button type="button" '+delAttr+'="'+o.k+'" aria-label="Quitar foto" style="position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:14px;border:2px solid var(--bg);background:var(--red);color:#fff;font-weight:700;line-height:1;padding:0">×</button>':'')+'</span>'}).join("")+
    '<label for="'+inputId+'" style="width:76px;height:76px;border-radius:14px;border:2px dashed var(--line);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer">'+IC.cam+'Agregar<input id="'+inputId+'" type="file" accept="image/*" multiple hidden></label></div><span class="tsub" style="font-size:12px">'+note+'</span></div>'}
 function vetoFields(o,ids){
-  return '<label class="field" for="'+ids[0]+'">Motivo <span class="opt">(opcional)</span><textarea id="'+ids[0]+'">'+esc(o.motivo)+'</textarea></label>'+
-   '<label class="field" for="'+ids[1]+'">Lugar del problema <span class="opt">(opcional)</span><input id="'+ids[1]+'" type="text" list="lugares" autocomplete="off" value="'+esc(o.lugar)+'"></label>'+lugares()}
+  return '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:600">¿En qué locales queda vetado?</span>'+locChips(locs(o),ids[0]==="fmot"?"data-floc":"data-eloc")+'<span class="tsub" style="font-size:12px">Puede marcar varios. "Todos los locales" lo muestra en todas las listas.</span></div>'+'<label class="field" for="'+ids[0]+'"><span>Motivo <span class="opt">(opcional)</span></span><textarea id="'+ids[0]+'">'+esc(o.motivo)+'</textarea></label>'+
+   '<label class="field" for="'+ids[1]+'"><span>Lugar del problema <span class="opt">(opcional)</span></span><input id="'+ids[1]+'" type="text" list="lugares" autocomplete="off" value="'+esc(o.lugar)+'"></label>'+lugares()}
 function vForm(){
   var f=S.form, p=f.pid?find(f.pid):null, nth=p?p.vetos.length+1:1;
   var h=header(p?"Volver a vetar":"Registrar veto",p&&f.fromDetail?"detail":"list","Cancelar")+'<form class="body" id="vform" novalidate>';
@@ -137,7 +157,7 @@ function vForm(){
   if(f.mode==="nueva"||p){
     var list=(p?(p.photos.length?p.photos:(p.thumb?[p.thumb]:[])).map(function(src){return {src:src,del:false}}):[]).concat(f.photos.map(function(src,k){return {src:src,del:true,k:k}}));
     h+=photoBox(list,"data-delfph","fph",p?"Se conservan sus fotos. Puede agregar nuevas.":"Puede agregar varias y recortarlas. La primera es la que sale en el menú.");
-    if(!p)h+='<label class="field" for="fname">Nombre <span class="opt">(opcional)</span><input id="fname" type="text" value="'+esc(f.name)+'"></label>';
+    if(!p)h+='<label class="field" for="fname"><span>Nombre <span class="opt">(opcional)</span></span><input id="fname" type="text" value="'+esc(f.name)+'"></label>';
     h+=vetoFields(f,["fmot","flug"]);
     h+='<label class="field" for="fdes">Fecha de veto<input id="fdes" type="date" max="'+TODAY+'" value="'+f.desde+'"></label>';
     var durs=[["0","Sin definir"],["w1","1 semana"],["w2","2 semanas"],["w3","3 semanas"],["1","1 mes"],["2","2 meses"],["3","3 meses"],["6","6 meses"],["otra","Otra fecha"]];
@@ -155,7 +175,7 @@ function vEdit(){
   var E=S.edit, v=E.vetos[E.vk];
   var h=header("Editar","detail","Cancelar")+'<form class="body" id="eform" novalidate>';
   h+=photoBox(E.photos.map(function(src,k){return {src:src,del:true,k:k}}),"data-delph","eph","La primera foto es la que sale en el menú. Toque × para quitar una.");
-  h+='<label class="field" for="ename">Nombre <span class="opt">(opcional)</span><input id="ename" type="text" value="'+esc(E.name)+'"></label>';
+  h+='<label class="field" for="ename"><span>Nombre <span class="opt">(opcional)</span></span><input id="ename" type="text" value="'+esc(E.name)+'"></label>';
   if(E.vetos.length>1){h+='<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:600">¿Cuál veto quiere editar?</span><div class="chips">'+E.vetos.map(function(x,k){return '<button type="button" class="chipb" data-vk="'+k+'" aria-pressed="'+(E.vk===k)+'">'+(k+1)+'° veto</button>'}).join("")+'</div></div>'}
   h+='<div class="card" style="gap:12px"><span class="lbl">'+(E.vk+1)+'° veto</span>'+vetoFields(v,["emot","elug"])+
    '<div class="two"><label class="field" for="edes">Fecha de veto<input id="edes" type="date" max="'+TODAY+'" value="'+v.desde+'"></label><label class="field" for="ehas">Fecha de desveto<input id="ehas" type="date" value="'+(v.hasta||"")+'"></label></div>'+
@@ -173,7 +193,7 @@ function shareText(p){var v=last(p),n=p.vetos.length;
   if(p.name&&p.name.trim())L2.push("Nombre: "+p.name.trim());
   L2.push("Vetado desde: "+fmt(v.desde),"Se desveta: "+(v.hasta?fmt(v.hasta):"Sin definir"));
   if(n>1)L2.push("Veces vetado: "+n);
-  if(v.motivo)L2.push("Motivo: "+v.motivo);if(v.lugar)L2.push("Lugar: "+v.lugar);
+  L2.push("Vetado en: "+locText(v));if(v.motivo)L2.push("Motivo: "+v.motivo);if(v.lugar)L2.push("Lugar: "+v.lugar);
   L2.push("","¿Aún sigue vetado?");return L2.join("\n")}
 function vShare(){
   var p=find(S.id),v=last(p),n=p.vetos.length,t=shareText(p);
@@ -219,7 +239,7 @@ function untilOf(f){if(f.dur==="0")return null;if(f.dur==="otra")return f.otra||
 function vHist(){
   var rows=[];S.people.forEach(function(p){p.vetos.forEach(function(v,k){rows.push({p:p,v:v,k:k,on:k===p.vetos.length-1&&active(p)})})});
   rows.sort(function(a,b){return b.v.desde<a.v.desde?-1:1});
-  return header("Historial de vetos","list")+'<div class="body" style="gap:10px"><span class="tsub" style="font-size:13px">'+rows.length+' vetos guardados, del más reciente al más antiguo.</span>'+rows.map(function(r){return '<button class="hrow" data-open="'+r.p.id+'"><span class="hface" style="'+face(r.p)+'">'+faceTxt(r.p)+'</span><span class="info"><span class="row between" style="gap:8px"><span style="font-size:14px;font-weight:600">'+esc(nm(r.p))+' <span style="font-weight:500;color:var(--muted)">· '+(r.k+1)+'° veto</span></span><span class="tag '+(r.on?"r":"g")+'">'+(r.on?"VETADO":"DESVETADO")+'</span></span>'+(r.v.motivo?'<span class="why">'+esc(r.v.motivo)+'</span>':'')+(r.v.lugar?'<span class="why">Lugar: '+esc(r.v.lugar)+'</span>':'')+'<span style="font-size:12px"><b>Veto:</b> '+fmt(r.v.desde)+' · <b>Desveto:</b> '+(r.v.hasta?fmt(r.v.hasta):"sin definir")+'</span></span></button>'}).join("")+'</div>';
+  return header("Historial de vetos","list")+'<div class="body" style="gap:10px"><span class="tsub" style="font-size:13px">'+rows.length+' vetos guardados, del más reciente al más antiguo.</span>'+rows.map(function(r){return '<button class="hrow" data-open="'+r.p.id+'"><span class="hface" style="'+face(r.p)+'">'+faceTxt(r.p)+'</span><span class="info"><span class="row between" style="gap:8px"><span style="font-size:14px;font-weight:600">'+esc(nm(r.p))+' <span style="font-weight:500;color:var(--muted)">· '+(r.k+1)+'° veto</span></span><span class="tag '+(r.on?"r":"g")+'">'+(r.on?"VETADO":"DESVETADO")+'</span></span>'+(r.v.motivo?'<span class="why">'+esc(r.v.motivo)+'</span>':'')+(r.v.lugar?'<span class="why">Lugar: '+esc(r.v.lugar)+'</span>':'')+'<span class="why">Vetado en: '+esc(locText(r.v,true))+'</span><span style="font-size:12px"><b>Veto:</b> '+fmt(r.v.desde)+' · <b>Desveto:</b> '+(r.v.hasta?fmt(r.v.hasta):"sin definir")+'</span></span></button>'}).join("")+'</div>';
 }
 
 function render(){
@@ -232,7 +252,7 @@ function render(){
   if(V==="login"){var lu=document.getElementById("lu");lu&&lu.focus()}
 }
 
-function newForm(extra){var f={mode:"nueva",pid:null,fromDetail:false,photos:[],name:"",pq:"",motivo:"",lugar:"",desde:TODAY,dur:"0",otra:""};for(var k in extra)f[k]=extra[k];return f}
+function newForm(extra){var f={mode:"nueva",pid:null,fromDetail:false,photos:[],name:"",pq:"",motivo:"",lugar:"",desde:TODAY,dur:"0",otra:"",locales:["todos"]};for(var k in extra)f[k]=extra[k];return f}
 function syncForm(){var f=S.form;if(!f)return;["fname:name","fmot:motivo","flug:lugar","fdes:desde","fhas:otra"].forEach(function(x){var p=x.split(":"),el=document.getElementById(p[0]);if(el)f[p[1]]=el.value})}
 
 function readPhotos(files,cb){
@@ -273,7 +293,7 @@ document.addEventListener("click",function(e){
   if(d.cropskip){finishCrop(false);return}
   if(d.cropcancel){S.crop=null;render();return}
   if(d.croprot){S.crop.rot=(S.crop.rot+1)%4;S.crop.x=0;S.crop.y=0;drawCrop();return}
-  if(d.pick!==undefined){syncForm();S.form.pid=d.pick||null;S.err="";render();window.scrollTo(0,0);if(d.pick)ensurePhotos(find(d.pick));return}
+  if(d.pick!==undefined){syncForm();S.form.pid=d.pick||null;if(d.pick)S.form.locales=locs(last(find(d.pick))).slice();S.err="";render();window.scrollTo(0,0);if(d.pick)ensurePhotos(find(d.pick));return}
   if(d.delfph){syncForm();S.form.photos.splice(+d.delfph,1);render();return}
   if(d.menu){S.menu=true;render();return}
   if(d.closemenu){S.menu=false;render();return}
@@ -296,6 +316,9 @@ document.addEventListener("click",function(e){
   if(d.go){e.preventDefault();go(d.go);return}
   if(d.role){S.role=d.role;S.tab="vetados";S.q="";go("list");return}
   if(d.tab){S.tab=d.tab;render();return}
+  if(d.loc){S.loc=d.loc;try{localStorage.setItem("squadra.loc",d.loc)}catch(_){}render();return}
+  if(d.floc){syncForm();S.form.locales=toggleLoc(locs(S.form),d.floc);render();return}
+  if(d.eloc){syncEdit();var ev=S.edit.vetos[S.edit.vk];ev.locales=toggleLoc(locs(ev),d.eloc);render();return}
   if(d.open){go("detail",{id:d.open,photo:0});ensurePhotos(find(d.open));return}
   if(d.photo){S.photo=+d.photo;render();return}
   if(d["new"]){S.form=newForm({});go("form");return}
@@ -304,10 +327,10 @@ document.addEventListener("click",function(e){
     var gp=find(S.edit.pid);S.confirmDel=false;
     save("Borrando…",Backend.deletePerson(gp.id),function(){S.edit=null;go("list");notify("Registro borrado: "+nm(gp))});return}
   if(d.edit){var pe=find(S.id);S.confirmDel=false;
-    withPhotos(pe,function(){S.edit={pid:pe.id,name:pe.name||"",photos:pe.photos.slice(),ids:pe.photoIds.slice(),vk:pe.vetos.length-1,vetos:pe.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta,motivo:x.motivo,lugar:x.lugar}})};go("edit")});return}
+    withPhotos(pe,function(){S.edit={pid:pe.id,name:pe.name||"",photos:pe.photos.slice(),ids:pe.photoIds.slice(),vk:pe.vetos.length-1,vetos:pe.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta,motivo:x.motivo,lugar:x.lugar,locales:locs(x).slice()}})};go("edit")});return}
   if(d.vk){syncEdit();S.edit.vk=+d.vk;S.err="";render();return}
   if(d.delph){syncEdit();S.edit.photos.splice(+d.delph,1);S.edit.ids.splice(+d.delph,1);render();return}
-  if(d.revetar){var pr=find(S.id);S.form=newForm({mode:"antes",pid:S.id,fromDetail:true});go("form");ensurePhotos(pr);return}
+  if(d.revetar){var pr=find(S.id);S.form=newForm({mode:"antes",pid:S.id,fromDetail:true,locales:locs(last(pr)).slice()});go("form");ensurePhotos(pr);return}
   if(d.mode){syncForm();S.form.mode=d.mode;S.form.pid=null;S.err="";render();return}
   if(d.dur){syncForm();S.form.dur=d.dur;render();return}
   if(d.desvetar){var dv=document.getElementById("dv").value,p=find(S.id),v=last(p);
@@ -367,7 +390,7 @@ document.addEventListener("submit",function(e){
     var keep=E.ids.filter(Boolean),removed=pp.photoIds.filter(function(id){return keep.indexOf(id)<0});
     var added=E.photos.filter(function(s,k){return !E.ids[k]});
     var order=E.ids.map(function(id,k){return id||null});
-    var data={name:E.name.trim(),vetos:E.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta||null,motivo:(x.motivo||"").trim(),lugar:(x.lugar||"").trim()}}),
+    var data={name:E.name.trim(),vetos:E.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta||null,motivo:(x.motivo||"").trim(),lugar:(x.lugar||"").trim(),locales:locs(x).slice()}}),
       remove:removed,keepOrder:order,photos:E.photos,photosChanged:removed.length>0||added.length>0||E.ids.join()!==pp.photoIds.join()};
     save("Guardando cambios…",Backend.updatePerson(pp.id,data),function(){S.edit=null;go("detail",{id:pp.id,photo:0});ensurePhotos(find(pp.id));notify("Cambios guardados: "+nm(pp))});return}
   if(e.target.id==="vform"){
@@ -380,7 +403,7 @@ document.addEventListener("submit",function(e){
     var hasta=untilOf(f);
     if(f.dur==="otra"&&!hasta){S.err="Escoja la fecha de desveto o marque Sin definir.";render();return}
     if(hasta&&hasta<=f.desde){S.err="La fecha de desveto tiene que ser después de la fecha de veto.";render();return}
-    var veto={desde:f.desde,hasta:hasta,motivo:f.motivo.trim(),lugar:f.lugar.trim()};
+    var veto={desde:f.desde,hasta:hasta,motivo:f.motivo.trim(),lugar:f.lugar.trim(),locales:locs(f).slice()};
     var job=p?Backend.addVeto(p.id,p.vetos.concat([veto]),f.photos):Backend.createPerson({name:f.name.trim(),vetos:[veto],photos:f.photos});
     var label=p?(p.vetos.length+1)+"° veto: "+nm(p):"Nuevo veto: "+(f.name.trim()||"Sin nombre");
     save("Guardando veto…",job,function(id){S.form=null;S.tab="vetados";S.q="";S.mine[id]=Date.now();go("detail",{id:id,photo:0});ensurePhotos(find(id));notify(label)});
@@ -455,6 +478,7 @@ function fichaImage(p){
     g.fillStyle="#fff";g.font="700 36px Inter, Arial, sans-serif";g.fillText(fmt(v.desde),40,y+56);g.fillText(v.hasta?fmt(v.hasta):"Sin definir",470,y+56);y+=110;
     g.font="500 30px Inter, Arial, sans-serif";
     if(v.motivo){g.fillStyle="#B9C7DA";g.fillText("Motivo",40,y);g.fillStyle="#fff";y=wrap(g,v.motivo,40,y+44,W-80,40,3)}
+    g.fillStyle="#B9C7DA";g.fillText("Vetado en",40,y);g.fillStyle="#fff";y=wrap(g,locText(v),40,y+44,W-80,40,2);
     if(v.lugar){g.fillStyle="#B9C7DA";g.fillText("Lugar: "+v.lugar,40,y+6);y+=50}
     g.fillStyle="#2F5682";g.fillRect(40,H-120,W-80,2);g.fillStyle="#fff";g.font="800 44px Montserrat, Arial, sans-serif";g.fillText("¿Aún sigue vetado?",40,H-56);
     return c.toDataURL("image/png");
@@ -480,7 +504,7 @@ function onPeople(list,changes,fromCache){
     var p=find(ch.id);if(!p||ch.type==="removed")return;var old=prev[p.id];
     var isNew=!old||p.vetos.length>old.vetos.length;
     if(isNew&&active(p)&&!ch.local&&!S.busy&&!(S.mine[p.id]&&Date.now()-S.mine[p.id]<15000)){
-      var txt=(p.vetos.length>1?p.vetos.length+"° veto: ":"Nuevo veto: ")+nm(p);notify(txt);Backend.localNotify("Squadra Vetados",txt)}
+      var txt=(p.vetos.length>1?p.vetos.length+"° veto: ":"Nuevo veto: ")+nm(p)+" · "+locText(last(p),true);notify(txt);Backend.localNotify("Squadra Vetados",txt)}
   })}
   firstSnap=false;render();
 }
