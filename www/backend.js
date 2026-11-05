@@ -33,11 +33,12 @@
   if (typeof firebase === "undefined") {
     // Sin la librería de Firebase no se puede hacer nada: se muestra un aviso claro.
     B.onSession = function(cb){ setTimeout(function(){ cb(null, "No hay conexión a internet. Revise la conexión y vuelva a abrir la app."); }, 0); };
-    ["needsSetup","login","setup","logout","watchPeople","getPhotos","createPerson","addVeto","setVetos","updatePerson","deletePerson","listAccounts","createAccount","updateAccount","deleteAccount","changePassword","shareImage","listDevices","closeDevice","closeAllDevices"].forEach(function(k){
+    ["needsSetup","login","setup","logout","watchPeople","getPhotos","createPerson","addVeto","setVetos","updatePerson","deletePerson","listAccounts","createAccount","updateAccount","deleteAccount","changePassword","shareImage","listDevices","closeDevice","closeAllDevices","resetPassword","saveLocales"].forEach(function(k){
       B[k] = function(){ return Promise.reject(new Error("offline")); };
     });
     B.needsSetup = function(){ return Promise.resolve(false); };
     B.watchPeople = function(){ return function(){}; };
+    B.watchLocales = function(cb){ cb(null); return function(){}; };
     B.message = function(){ return "No hay conexión a internet."; };
     B.protectScreen = function(){}; B.localNotify = function(){}; B.askNotifications = function(){};
     window.Backend = B; return;
@@ -54,6 +55,7 @@
     if (/network|unavailable/.test(c) || /offline/.test(m)) return "No hay conexión a internet. Intente de nuevo.";
     if (/email-already-in-use/.test(c)) return "Ese usuario ya existe. Escoja otro.";
     if (/weak-password/.test(c)) return "La contraseña es muy débil. Use al menos 6 caracteres.";
+    if (/not-found/.test(c)) return "Esa cuenta ya no existe.";
     if (/requires-recent-login/.test(c)) return "Por seguridad, salga y vuelva a entrar antes de cambiar la contraseña.";
     if (/permission-denied/.test(c)) return "Su cuenta no tiene permiso para hacer esto.";
     if (/resource-exhausted/.test(c)) return "Se llegó al límite gratis de hoy. Mañana vuelve a funcionar.";
@@ -97,6 +99,7 @@
       stopMe = db.doc("cuentas/" + user.uid).onSnapshot(function(d){
         if (!d.exists) { B.logout("Esta cuenta no tiene acceso. Hable con Soporte.", true); return; }
         var a = d.data();
+        if (a.reemplazada) { B.logout("Soporte le cambió la clave. Entre con la clave nueva.", true); return; }
         if (!a.activo) { B.logout("Esta cuenta está desactivada. Hable con Soporte.", true); return; }
         if (!started) { started = true; startDevice(user.uid); }
         cb({ uid: user.uid, user: a.usuario, name: a.nombre, role: a.rol });
@@ -104,7 +107,8 @@
     });
   };
   B.needsSetup = function(){ return db.doc("sistema/listo").get().then(function(d){ return !d.exists; }); };
-  B.login = function(u, p){ freshLogin = true; return auth.signInWithEmailAndPassword(email(u), p).catch(function(e){ freshLogin = false; throw e; }); };
+  function emailOf(u){ return db.doc("usuarios/" + u).get({ source: "server" }).then(function(d){ return d.exists && d.data().email ? d.data().email : email(u); }, function(){ return email(u); }); }
+  B.login = function(u, p){ freshLogin = true; return emailOf(u).then(function(e){ return auth.signInWithEmailAndPassword(e, p); }).catch(function(e){ freshLogin = false; throw e; }); };
   B.logout = function(reason, kicked){
     kickReason = reason || "";
     stopDevice();
@@ -119,6 +123,7 @@
     return auth.createUserWithEmailAndPassword(email(o.user), o.pass).then(function(c){
       var b = db.batch();
       b.set(db.doc("cuentas/" + c.user.uid), { usuario: o.user, nombre: o.name, rol: "supremo", activo: true, creado: ts() });
+      b.set(db.doc("usuarios/" + o.user), { email: email(o.user) });
       b.set(db.doc("sistema/listo"), { creado: ts(), por: c.user.uid });
       return b.commit();
     });
@@ -126,7 +131,12 @@
   B.changePassword = function(oldP, newP){
     var u = auth.currentUser;
     var cred = firebase.auth.EmailAuthProvider.credential(u.email, oldP);
-    return u.reauthenticateWithCredential(cred).then(function(){ return u.updatePassword(newP); });
+    return u.reauthenticateWithCredential(cred).then(function(){ return u.updatePassword(newP); }).then(function(){
+      // Al cambiar la clave se cierran las sesiones de los demás dispositivos.
+      return db.collection("cuentas/" + u.uid + "/dispositivos").get().then(function(s){
+        var b = db.batch(), mine = deviceId(); s.docs.forEach(function(d){ if (d.id !== mine) b.delete(d.ref); }); return b.commit();
+      });
+    });
   };
 
   /* ---------- Personas ---------- */
@@ -205,10 +215,14 @@
     });
   };
 
+  /* ---------- Locales (los edita Soporte) ---------- */
+  B.watchLocales = function(cb){ return db.doc("sistema/locales").onSnapshot(function(d){ cb(d.exists && d.data().lista ? d.data().lista : null); }, function(){ cb(null); }); };
+  B.saveLocales = function(lista){ return db.doc("sistema/locales").set({ lista: lista, actualizado: ts() }); };
+
   /* ---------- Cuentas (solo Soporte) ---------- */
   B.listAccounts = function(){
     return db.collection("cuentas").get().then(function(s){
-      return s.docs.map(function(d){ var a = d.data(); return { uid: d.id, user: a.usuario, name: a.nombre, role: a.rol, off: !a.activo }; });
+      return s.docs.filter(function(d){ return !d.data().reemplazada; }).map(function(d){ var a = d.data(); return { uid: d.id, user: a.usuario, name: a.nombre, role: a.rol, off: !a.activo }; });
     });
   };
   var second = null;
@@ -219,14 +233,42 @@
     return a2.createUserWithEmailAndPassword(email(o.user), o.pass).then(function(c){
       var uid = c.user.uid;
       return a2.signOut().then(function(){
-        return db.doc("cuentas/" + uid).set({ usuario: o.user, nombre: o.name, rol: o.role, activo: true, creado: ts() });
+        var b = db.batch();
+        b.set(db.doc("cuentas/" + uid), { usuario: o.user, nombre: o.name, rol: o.role, activo: true, creado: ts() });
+        b.set(db.doc("usuarios/" + o.user), { email: email(o.user) });
+        return b.commit();
+      });
+    });
+  };
+  /* Clave nueva generada por Soporte: se crea un acceso nuevo para el mismo usuario y el anterior queda sin efecto,
+     así se cierran todas las sesiones abiertas con la clave vieja. */
+  B.resetPassword = function(uid, pass){
+    if (!second) second = firebase.initializeApp(cfg, "crear-cuentas");
+    var a2 = second.auth(), old;
+    return db.doc("cuentas/" + uid).get().then(function(d){
+      if (!d.exists) throw { code: "not-found" };
+      old = d.data();
+      var mail = old.usuario + ".r" + Date.now().toString(36) + DOMAIN;
+      return a2.createUserWithEmailAndPassword(mail, pass).then(function(c){ return a2.signOut().then(function(){ return { uid: c.user.uid, mail: mail }; }); });
+    }).then(function(n){
+      return db.collection("cuentas/" + uid + "/dispositivos").get().then(function(s){
+        var b = db.batch();
+        b.set(db.doc("cuentas/" + n.uid), { usuario: old.usuario, nombre: old.nombre, rol: old.rol, activo: true, creado: ts() });
+        b.set(db.doc("usuarios/" + old.usuario), { email: n.mail });
+        b.set(db.doc("cuentas/" + uid), { usuario: old.usuario, nombre: old.nombre, rol: old.rol, activo: false, reemplazada: true });
+        s.docs.forEach(function(x){ b.delete(x.ref); });
+        return b.commit().then(function(){ return n.uid; });
       });
     });
   };
   B.updateAccount = function(uid, o){ return db.doc("cuentas/" + uid).update({ nombre: o.name, rol: o.role, activo: !o.off }); };
   B.deleteAccount = function(uid){
     return db.collection("cuentas/" + uid + "/dispositivos").get().then(function(s){
-      var b = db.batch(); s.docs.forEach(function(d){ b.delete(d.ref); }); b.delete(db.doc("cuentas/" + uid)); return b.commit();
+      return db.doc("cuentas/" + uid).get().then(function(c){
+        var b = db.batch(); s.docs.forEach(function(d){ b.delete(d.ref); }); b.delete(db.doc("cuentas/" + uid));
+        if (c.exists && c.data().usuario) b.delete(db.doc("usuarios/" + c.data().usuario));
+        return b.commit();
+      });
     });
   };
   function devConv(d){ var x = d.data(); return { id: d.id, uid: d.ref.parent.parent.id, tipo: x.tipo || "Dispositivo", detalle: x.detalle || "", version: x.version || 0,

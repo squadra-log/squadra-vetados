@@ -20,6 +20,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Nombres de locales (los edita Soporte)
+    match /sistema/locales {
+      allow read: if activo();
+      allow write: if soporte();
+    }
+
+    // Usuario -> correo interno de acceso (se usa al entrar; no se puede listar)
+    match /usuarios/{u} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if soporte()
+        || (signedIn() && !exists(listoPath()) && existsAfter(listoPath()));
+    }
+
     match /cuentas/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || soporte());
       // Soporte crea cuentas; o la primera cuenta de Soporte durante la configuración inicial

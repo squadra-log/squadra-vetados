@@ -31,7 +31,15 @@ var LOCALES=[
   {k:"escobar",t:"Escobar",full:"Escobar"},
   {k:"once",t:"Once Once",full:"Once Once"},
   {k:"otros",t:"Otros",full:"Otros locales"}];
-var VENUES=["Solar","Sunsed","Tremenda","Delirio","Escobar","Once Once"];
+var DEFAULT_LOCALES=LOCALES.map(function(o){return {k:o.k,t:o.t}});
+var VENUES=[];
+function setLocales(list){
+  var src=list&&list.length?list:DEFAULT_LOCALES;
+  LOCALES=src.map(function(o){return {k:o.k,t:o.t,full:o.k==="otros"?"Otros locales":o.t}});
+  VENUES=LOCALES.filter(function(o){return o.k!=="otros"}).map(function(o){return o.t});
+  if(S.loc!=="todos"&&!LOCALES.some(function(o){return o.k===S.loc}))S.loc="todos";
+}
+setLocales(null);
 var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 function locs(v){var l=v&&v.locales;if(!l||!l.length)return ["todos"];var out=[];l.forEach(function(k){(k==="trio"?["tremenda","delirio","escobar"]:[k]).forEach(function(x){if(out.indexOf(x)<0)out.push(x)})});return out}
 function inLocal(p,k){if(k==="todos")return true;var l=locs(last(p));return l.indexOf("todos")>=0||l.indexOf(k)>=0}
@@ -81,6 +89,30 @@ function vStart(){
  '<div style="flex:1"></div><button class="btn white" type="submit">'+(setup?"Crear cuenta de Soporte":"Entrar")+'</button>'+
  (Backend.isNative()||setup?'':'<a href="SquadraVetados.apk" style="color:#B9C7DA;font-size:13px;text-align:center">Descargar la app para Android</a>')+'</form>'}
 function vLogin(){return vStart()}
+function pin6(){var a=new Uint32Array(1);try{crypto.getRandomValues(a)}catch(_){a[0]=Math.floor(Math.random()*1e9)}return String(100000+a[0]%900000)}
+function slug(t){return norm(t).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"local"}
+function syncLoc(){document.querySelectorAll(".locin").forEach(function(el){var i=+el.dataset.i;if(S.locEdit[i])S.locEdit[i].t=el.value})}
+function vLocales(){
+  var L=S.locEdit||[];
+  var uses=function(k){return k?S.people.filter(function(p){return p.vetos.some(function(v){return locs(v).indexOf(k)>=0})}).length:0};
+  return header("Locales","list","Cancelar")+'<div class="body" style="gap:10px"><span class="tsub" style="font-size:13px">Estos son los locales que salen arriba en la lista y al registrar un veto. Cambiar el nombre no afecta los vetos que ya tiene.</span>'+
+   L.map(function(o,i){var n=uses(o.k);return '<div class="card" style="flex-direction:row;align-items:center;gap:8px;padding:10px 12px">'+
+     '<input class="locin" data-i="'+i+'" type="text" value="'+esc(o.t)+'" placeholder="Nombre del local" aria-label="Nombre del local '+(i+1)+'" style="flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 12px;font-weight:600">'+
+     '<button type="button" class="iconbtn" data-locup="'+i+'" aria-label="Subir" style="background:var(--chip);color:var(--fg);width:40px;height:40px"'+(i===0?' disabled':'')+'>↑</button>'+
+     '<button type="button" class="iconbtn" data-locdown="'+i+'" aria-label="Bajar" style="background:var(--chip);color:var(--fg);width:40px;height:40px"'+(i===L.length-1?' disabled':'')+'>↓</button>'+
+     '<button type="button" data-locdel="'+i+'" aria-label="Quitar" style="border:1.5px solid var(--red);background:'+(S.locDel===i?'var(--red)':'transparent')+';color:'+(S.locDel===i?'#fff':'var(--redtext)')+';border-radius:10px;height:40px;padding:0 10px;font-weight:700;font-size:12px">'+(S.locDel===i?(n?'¿Quitar? '+n+' con veto':'¿Quitar?'):'Quitar')+'</button></div>'}).join("")+
+   '<button type="button" class="btn" data-locadd="1" style="background:var(--chip);color:var(--fg);height:48px;font-size:15px">'+IC.plus+'Agregar local</button>'+
+   (S.err?'<span class="err">'+S.err+'</span>':'')+
+   '<button type="button" class="btn navy" data-locsave="1">Guardar locales</button>'+
+   '<span class="tsub" style="font-size:12px">Si quita un local, las personas vetadas solo ahí siguen saliendo en "Todos".</span></div>'}
+function saveLocales(){
+  var L=S.locEdit.map(function(o){return {k:o.k,t:(o.t||"").trim()}}).filter(function(o){return o.t});
+  var seen={};for(var i=0;i<L.length;i++){var n=norm(L[i].t);if(seen[n]){S.err="El local "+L[i].t+" está repetido.";render();return}seen[n]=1}
+  if(!L.length){S.err="Tiene que haber al menos un local.";render();return}
+  var used={};L.forEach(function(o){if(o.k)used[o.k]=1});
+  L.forEach(function(o){if(!o.k){var k=slug(o.t),b=k,n=2;while(used[k]){k=b+"-"+n++}o.k=k;used[k]=1}});
+  save("Guardando locales…",Backend.saveLocales(L),function(){setLocales(L);go("list");notify("Locales guardados")});
+}
 function bootScreen(t){return '<div class="boot" role="status"><img alt="Squadra Servicios Logísticos" src="'+LOGO+'"><div class="bootbar"></div><span>'+esc(t)+'</span></div>'}
 
 function vList(){
@@ -221,9 +253,12 @@ function vAccForm(){
   var A=S.acc, own=A.orig&&A.orig===S.me.uid;
   var h=header(A.orig?"Editar cuenta":"Crear cuenta","accounts","Cancelar")+'<form class="body" id="aform" novalidate>'+
    '<label class="field" for="aname">Nombre<input id="aname" type="text" value="'+esc(A.name)+'"></label>'+
-   (A.orig?'<div class="card" style="gap:4px"><span class="tsub">Usuario</span><b>'+esc(A.user)+'</b><span class="tsub" style="font-size:12px">El usuario y la contraseña no se pueden cambiar desde aquí. Si alguien olvidó su clave, desactive esta cuenta y créele una nueva.</span></div>':
+   (A.orig?'<div class="card" style="gap:6px"><span class="tsub">Usuario</span><b>'+esc(A.user)+'</b>'+
+     (S.newPass&&S.newPass.user===A.user?'<div style="background:var(--greensoft);color:var(--greentext);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;font-weight:600">Clave nueva — entréguesela a la persona</span><span style="font-family:var(--display);font-size:32px;font-weight:800;letter-spacing:.12em">'+esc(S.newPass.pass)+'</span><span style="font-size:12px">Las sesiones abiertas con la clave anterior se cerraron.</span></div>':'')+
+     (own?'<span class="tsub" style="font-size:12px">Para cambiar su propia clave use "Mi cuenta → Cambiar mi contraseña".</span>':
+      '<button type="button" class="btn" data-resetpass="1" style="height:46px;font-size:14px;background:'+(S.confirmReset?'var(--navy)':'var(--chip)')+';color:'+(S.confirmReset?'#fff':'var(--fg)')+'">'+(S.confirmReset?'Toque otra vez: se cierran sus sesiones':'Generar clave nueva (6 números)')+'</button>')+'</div>':
    '<label class="field" for="auser">Usuario<input id="auser" type="text" autocapitalize="none" spellcheck="false" placeholder="Ej. filtro.norte" value="'+esc(A.user)+'"></label>'+
-   '<label class="field" for="apass">Contraseña<input id="apass" type="text" autocomplete="off" placeholder="Mínimo 6 caracteres" value="'+esc(A.pass)+'"></label><span class="tsub" style="font-size:12px;margin-top:-8px">Anote la contraseña y entréguesela a la persona. Ella la puede cambiar después en "Mi cuenta".</span>')+
+   '<div style="display:flex;gap:8px;align-items:flex-end"><label class="field" for="apass" style="flex:1">Contraseña<input id="apass" type="text" inputmode="numeric" autocomplete="off" placeholder="Mínimo 6 caracteres" value="'+esc(A.pass)+'"></label><button type="button" class="btn navy" data-genpass="1" style="width:auto;padding:0 16px;height:48px;font-size:14px">Generar</button></div><span class="tsub" style="font-size:12px;margin-top:-8px">Anote la contraseña y entréguesela a la persona. Ella la puede cambiar después en "Mi cuenta".</span>')+
    '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:600">Tipo de cuenta</span><div class="seg" role="group" aria-label="Tipo de cuenta" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" data-arole="consulta" aria-pressed="'+(A.role==="consulta")+'">Consulta</button><button type="button" data-arole="admin" aria-pressed="'+(A.role==="admin")+'">Admin</button><button type="button" data-arole="supremo" aria-pressed="'+(A.role==="supremo")+'">Soporte</button></div>'+
    '<span class="tsub" style="font-size:12px">'+(A.role==="supremo"?"Soporte: puede hacer todo, tomar capturas y crear o editar cuentas.":A.role==="admin"?"Administrador: crea, edita, desveta y vuelve a vetar. Puede tomar capturas y compartir fichas. No crea cuentas.":"Consulta (filtro): solo ve las fichas. No puede tomar capturas, compartir ni cambiar nada.")+'</span></div>';
   if(A.orig&&!own)h+='<button type="button" class="btn" data-aoff="1" style="height:48px;font-size:15px;background:'+(A.off?"var(--green)":"var(--chip)")+';color:'+(A.off?"#fff":"var(--fg)")+'">'+(A.off?"Activar cuenta otra vez":"Desactivar cuenta (quitar acceso)")+'</button>'+(A.off?'<span class="err">Esta cuenta está desactivada: no puede entrar.</span>':'');
@@ -244,7 +279,7 @@ function vHist(){
 
 function render(){
   var app=document.getElementById("app"), V=S.view;
-  app.innerHTML = V==="start"?vStart():V==="login"?vLogin():V==="list"?vList():V==="detail"?vDetail():V==="form"?vForm():V==="edit"?vEdit():V==="accounts"?vAccounts():V==="accform"?vAccForm():V==="pwd"?vPwd():vHist();
+  app.innerHTML = V==="start"?vStart():V==="login"?vLogin():V==="list"?vList():V==="detail"?vDetail():V==="form"?vForm():V==="edit"?vEdit():V==="accounts"?vAccounts():V==="accform"?vAccForm():V==="pwd"?vPwd():V==="locales"?vLocales():vHist();
   var zp=V==="detail"&&S.zoom?find(S.id):null;
   if(V==="detail"&&!find(S.id)){S.view="list";return render()}
   var lsel=document.querySelector('.loc[aria-pressed="true"]');if(lsel){var lc=lsel.parentNode;lc.scrollLeft=lsel.offsetLeft-lc.offsetLeft-lc.clientWidth/2+lsel.offsetWidth/2}
@@ -301,14 +336,22 @@ document.addEventListener("click",function(e){
   if(d.closemenu){S.menu=false;render();return}
   if(d.logout){S.menu=false;Backend.logout();return}
   if(d.pwd){S.menu=false;go("pwd");return}
+  if(d.golocales){S.menu=false;S.locEdit=LOCALES.map(function(o){return {k:o.k,t:o.t}});S.locDel=null;go("locales");return}
+  if(d.locup!==undefined||d.locdown!==undefined){syncLoc();var i=+(d.locup!==undefined?d.locup:d.locdown),j=d.locup!==undefined?i-1:i+1,L=S.locEdit;if(j>=0&&j<L.length){var t=L[i];L[i]=L[j];L[j]=t}render();return}
+  if(d.locadd){syncLoc();S.locEdit.push({k:"",t:""});render();var ins=document.querySelectorAll(".locin");if(ins.length)ins[ins.length-1].focus();return}
+  if(d.locdel!==undefined){syncLoc();var di=+d.locdel;if(S.locDel!==di){S.locDel=di;render();return}S.locEdit.splice(di,1);S.locDel=null;render();return}
+  if(d.locsave){syncLoc();saveLocales();return}
+  if(d.genpass){syncAcc();S.acc.pass=pin6();render();return}
+  if(d.resetpass){syncAcc();if(!S.confirmReset){S.confirmReset=true;render();return}S.confirmReset=false;var ra=S.acc,np=pin6();
+    save("Generando clave nueva…",Backend.resetPassword(ra.orig,np),function(nuid){ra.orig=nuid;S.newPass={user:ra.user,pass:np};openAccounts(true)});return}
   if(d.sharepic){sharePicture();return}
   if(d.share){S.share=true;S.shareImg="";render();prepareShare();return}
   if(d.closeshare){S.share=false;S.zoom=false;render();return}
   if(d.copy){var txt=document.getElementById("stext"),cb=document.getElementById("copybtn");
     var ok=function(){cb.textContent="Mensaje copiado"},fb=function(){txt.focus();txt.select();cb.textContent="Mensaje seleccionado: cópielo"};
     try{navigator.clipboard.writeText(txt.value).then(ok,fb)}catch(_){fb()}return}
-  if(d.accnew){S.acc={orig:null,name:"",user:"",pass:"",role:"consulta",off:false};S.confirmDel=false;go("accform");return}
-  if(d.accopen){var c=S.accounts.filter(function(x){return x.uid===d.accopen})[0];S.acc={orig:c.uid,name:c.name,user:c.user,pass:"",role:c.role,off:!!c.off};S.confirmDel=false;go("accform");return}
+  if(d.accnew){S.newPass=null;S.acc={orig:null,name:"",user:"",pass:"",role:"consulta",off:false};S.confirmDel=false;go("accform");return}
+  if(d.accopen){S.newPass=null;S.confirmReset=false;var c=S.accounts.filter(function(x){return x.uid===d.accopen})[0];S.acc={orig:c.uid,name:c.name,user:c.user,pass:"",role:c.role,off:!!c.off};S.confirmDel=false;go("accform");return}
   if(d.closedev){syncAcc();var cu=S.acc.orig,cid=d.closedev,dv=devsOf(cu).filter(function(x){return x.id===cid})[0];
     save("Cerrando sesión…",Backend.closeDevice(cu,cid),function(){openAccounts(true);notify("Sesión cerrada en "+(dv?dv.tipo:"el dispositivo"))});return}
   if(d.closealldev){syncAcc();var ca=S.acc.orig;save("Cerrando sesiones…",Backend.closeAllDevices(ca),function(){openAccounts(true);notify("Se cerraron todas las sesiones de esa cuenta")});return}
@@ -369,7 +412,7 @@ document.addEventListener("submit",function(e){
   if(e.target.id==="pwdf"){var o=document.getElementById("pold").value,n1=document.getElementById("pnew").value,n2=document.getElementById("pnew2").value;
     if(n1.length<6){S.err="La nueva contraseña debe tener al menos 6 caracteres.";render();return}
     if(n1!==n2){S.err="Las dos contraseñas nuevas no coinciden.";render();return}
-    save("Cambiando contraseña…",Backend.changePassword(o,n1),function(){go("list");notify("Contraseña cambiada")});return}
+    save("Cambiando contraseña…",Backend.changePassword(o,n1),function(){go("list");notify("Contraseña cambiada. Se cerró la sesión en sus otros dispositivos.")});return}
   if(e.target.id==="aform"){
     syncAcc();var A=S.acc;A.user=cleanUser(A.user);A.name=A.name.trim();
     if(!A.name){S.err="Escriba el nombre.";render();return}
@@ -468,6 +511,7 @@ function vDevices(uid){
 /* Menú "Mi cuenta" */
 function vMenu(){return '<div class="overlay"><div class="sheet" role="dialog" aria-label="Mi cuenta">'+
   '<div class="row between"><span style="display:flex;flex-direction:column;gap:2px"><b style="font-size:16px">'+esc(S.me?S.me.name:"")+'</b><span class="tsub">Usuario: '+esc(S.me?S.me.user:"")+'</span></span><button class="iconbtn" data-closemenu="1" aria-label="Cerrar" style="background:var(--chip);color:var(--fg)">'+IC.close+'</button></div>'+
+  (S.me&&S.me.role==="supremo"?'<button class="menuitem" data-golocales="1">'+IC.pin+'Locales</button>':'')+
   '<button class="menuitem" data-pwd="1">'+IC.lock+'Cambiar mi contraseña</button>'+
   '<button class="menuitem" data-logout="1" style="color:var(--redtext)">'+IC.exit+'Salir</button></div></div>'}
 function vPwd(){return header("Cambiar contraseña","list","Cancelar")+'<form class="body" id="pwdf" novalidate>'+
@@ -514,7 +558,7 @@ function prepareShare(){var p=find(S.id);if(!p)return;S.shareImg="";
   ensurePhotos(p,function(){fichaImage(p).then(function(url){S.shareImg=url;render()},function(){S.share=false;render();notify("No se pudo preparar la imagen.")})})}
 
 /* Sesión y datos en vivo */
-var stopPeople=null,firstSnap=true;
+var stopPeople=null,firstSnap=true,stopLocales=null;
 function onPeople(list,changes,fromCache){
   var prev={};S.people.forEach(function(p){prev[p.id]=p});
   S.people=list.map(function(p){p.color=colorFor(p.id);applyCache(p);return p});
@@ -531,6 +575,7 @@ function onPeople(list,changes,fromCache){
 Backend.onSession(function(me,reason){
   S.booting=false;
   if(stopPeople){stopPeople();stopPeople=null}
+  if(stopLocales&&!me){stopLocales();stopLocales=null}
   if(!me){
     S.me=null;S.role=null;S.people=[];S.ready=false;S.photoCache={};S.accounts=[];Backend.protectScreen(true);
     var show=function(need){S.setup=need;go("start");S.err=reason||"";render()};Backend.needsSetup().then(show,function(){show(false)});
@@ -541,6 +586,7 @@ Backend.onSession(function(me,reason){
   Backend.protectScreen(me.role==="consulta");
   if(first){S.tab="vetados";S.q="";firstSnap=true;S.openedAt=Date.now();S.ready=false;go("list");Backend.askNotifications()}else render();
   stopPeople=Backend.watchPeople(onPeople,function(err){S.err=Backend.message(err);render()});
+  if(!stopLocales)stopLocales=Backend.watchLocales(function(list){setLocales(list);render()});
 });
 window.addEventListener("online",function(){S.offline=false;render()});
 window.addEventListener("offline",function(){S.offline=true;render()});
@@ -560,7 +606,7 @@ function appBack(){
   if(V==="edit"){S.edit=null;go("detail");return}
   if(V==="form"){var fd=S.form&&S.form.fromDetail;S.form=null;go(fd?"detail":"list");return}
   if(V==="accform"){S.acc=null;go("accounts");return}
-  if(V==="detail"||V==="historial"||V==="accounts"||V==="pwd"){go("list");return}
+  if(V==="detail"||V==="historial"||V==="accounts"||V==="pwd"||V==="locales"){go("list");return}
   render();
 }
 window.addEventListener("popstate",function(){
