@@ -132,10 +132,10 @@
   /* ---------- Personas ---------- */
   function conv(d){
     var x = d.data();
-    return { id: d.id, name: x.nombre || "", thumb: x.thumb || "", fv: x.fv || 0, nFotos: x.nFotos || 0, vetos: x.vetos || [] };
+    return { id: d.id, name: x.nombre || "", thumb: x.thumb || "", fv: x.fv || 0, nFotos: x.nFotos || 0, vetos: x.vetos || [], at: x.actualizado && x.actualizado.toMillis ? x.actualizado.toMillis() : 0 };
   }
   B.watchPeople = function(onData, onError){
-    return db.collection("personas").onSnapshot({ includeMetadataChanges: false }, function(s){
+    return db.collection("personas").onSnapshot({ includeMetadataChanges: true }, function(s){
       var changes = s.docChanges().map(function(ch){ return { type: ch.type, id: ch.doc.id, local: ch.doc.metadata.hasPendingWrites }; });
       onData(s.docs.map(conv), changes, s.metadata.fromCache);
     }, onError);

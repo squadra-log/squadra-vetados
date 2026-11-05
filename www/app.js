@@ -520,11 +520,12 @@ function onPeople(list,changes,fromCache){
   S.ready=true;S.offline=!!fromCache&&!navigator.onLine;
   if(!firstSnap){changes.forEach(function(ch){
     var p=find(ch.id);if(!p||ch.type==="removed")return;var old=prev[p.id];
-    var isNew=!old||p.vetos.length>old.vetos.length;
+    var isNew=(!old||p.vetos.length>old.vetos.length)&&(!p.at||p.at>=S.openedAt-60000);
     if(isNew&&active(p)&&!ch.local&&!S.busy&&!(S.mine[p.id]&&Date.now()-S.mine[p.id]<15000)){
       var txt=(p.vetos.length>1?p.vetos.length+"° veto: ":"Nuevo veto: ")+nm(p)+" · "+locText(last(p),true);notify(txt);Backend.localNotify("Squadra Vetados",txt)}
   })}
-  firstSnap=false;render();
+  /* La primera carga desde internet no avisa: solo lo que llegue después de abrir la app */
+  if(firstSnap&&!fromCache)firstSnap=false;render();
 }
 Backend.onSession(function(me,reason){
   S.booting=false;
@@ -537,7 +538,7 @@ Backend.onSession(function(me,reason){
   if(me.role==="consulta"&&!Backend.isNative()){Backend.logout("Las cuentas de filtro solo pueden entrar desde la app de Android.");return}
   var first=!S.me;S.me=me;S.role=me.role==="consulta"?"consulta":"admin";
   Backend.protectScreen(me.role==="consulta");
-  if(first){S.tab="vetados";S.q="";firstSnap=true;S.ready=false;go("list");Backend.askNotifications()}else render();
+  if(first){S.tab="vetados";S.q="";firstSnap=true;S.openedAt=Date.now();S.ready=false;go("list");Backend.askNotifications()}else render();
   stopPeople=Backend.watchPeople(onPeople,function(err){S.err=Backend.message(err);render()});
 });
 window.addEventListener("online",function(){S.offline=false;render()});
