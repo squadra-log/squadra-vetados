@@ -63,7 +63,7 @@ h1{margin:0;font-family:var(--display);font-weight:800;font-size:24px;text-wrap:
 .lbl{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .big{font-family:var(--display);font-weight:700;font-size:18px}
 .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.hero{height:240px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:64px;background-size:cover;background-position:center;position:relative}
+.hero{width:100%;height:auto;aspect-ratio:1/1;max-width:100%;border-radius:18px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:64px;background-size:cover;background-position:center;position:relative}
 .ctr{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.55);font-size:12px;font-weight:600;padding:4px 10px;border-radius:10px}
 .thumbs{display:flex;gap:8px;flex-wrap:wrap}
 .thumb{width:60px;height:60px;border-radius:12px;border:3px solid transparent;padding:0;background-size:cover;background-position:center}
@@ -126,7 +126,7 @@ h1{margin:0;font-family:var(--display);font-weight:800;font-size:24px;text-wrap:
 .pc .face{max-width:150px}
 .pc .detail{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);align-items:stretch}
 .pc .detail>.body{padding:28px 36px;max-width:760px}
-.pc .hero{height:320px}
+.pc .hero{height:auto}
 .pc form.body,.pc .body{max-width:720px;margin:0 auto;width:100%;padding:24px 32px}
 .pc .detail>.body{margin:0}
 .pc .start{max-width:460px;margin:40px auto;border-radius:24px;min-height:auto}
