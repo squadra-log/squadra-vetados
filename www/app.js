@@ -70,7 +70,7 @@ function notify(t){var n=document.getElementById("notif");document.getElementByI
 function header(title,backView,backLabel){return '<div class="top"><div class="row between"><div class="row"><button class="iconbtn" data-go="'+backView+'" aria-label="'+(backLabel||"Volver")+'">'+(backLabel==="Cancelar"?IC.close:IC.back)+'</button><h1>'+esc(title)+'</h1></div><img class="logo sm" alt="Squadra" src="'+ICON+'\"></div></div>'}
 
 function vStart(){
-  if(S.booting)return '<div class="start dark" style="align-items:center;justify-content:center"><img alt="Squadra Servicios Logísticos" src="'+LOGO+'" style="width:170px;height:170px;border-radius:24px"><div class="spin"></div></div>';
+  if(S.booting||(S.busy&&S.view==="start"))return bootScreen(S.busy||"Cargando…");
   var setup=S.setup;
   return '<form class="start dark" id="'+(setup?"setupf":"loginf")+'" novalidate><div style="display:flex;flex-direction:column;align-items:center;gap:12px"><img alt="Squadra Servicios Logísticos" src="'+LOGO+'" style="width:170px;height:170px;border-radius:24px"><span style="color:#B9C7DA;font-size:14px">Control de ingreso · Vetados</span></div>'+
  (setup?'<div style="background:#0B3966;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.45;color:#D5DEEA"><b style="color:#fff">Configuración inicial.</b> Cree la primera cuenta de <b style="color:#fff">Soporte</b>. Esa persona crea todas las demás cuentas.</div><label class="field" for="sname">Nombre<input id="sname" type="text" autocomplete="off"></label>':'')+
@@ -81,6 +81,7 @@ function vStart(){
  '<div style="flex:1"></div><button class="btn white" type="submit">'+(setup?"Crear cuenta de Soporte":"Entrar")+'</button>'+
  (Backend.isNative()||setup?'':'<a href="SquadraVetados.apk" style="color:#B9C7DA;font-size:13px;text-align:center">Descargar la app para Android</a>')+'</form>'}
 function vLogin(){return vStart()}
+function bootScreen(t){return '<div class="boot" role="status"><img alt="Squadra Servicios Logísticos" src="'+LOGO+'"><div class="bootbar"></div><span>'+esc(t)+'</span></div>'}
 
 function vList(){
   var admin=S.role==="admin", q=norm(S.q.trim());
@@ -247,7 +248,7 @@ function render(){
   var zp=V==="detail"&&S.zoom?find(S.id):null;
   if(V==="detail"&&!find(S.id)){S.view="list";return render()}
   var lsel=document.querySelector('.loc[aria-pressed="true"]');if(lsel){var lc=lsel.parentNode;lc.scrollLeft=lsel.offsetLeft-lc.offsetLeft-lc.clientWidth/2+lsel.offsetWidth/2}
-  document.getElementById("sheet").innerHTML = (S.busy?'<div class="busy" role="status"><div><span class="spin"></span>'+esc(S.busy)+'</div></div>':"")+(S.menu?vMenu():"")+(S.crop&&S.crop.img?vCrop():(S.share&&V==="detail")?vShare():zp&&zp.photos.length?'<div class="overlay" style="align-items:center;background:rgba(0,0,0,.92)"><img alt="Foto de '+esc(nm(zp))+'" src="'+zp.photos[Math.min(S.photo,zp.photos.length-1)]+'" style="max-width:100%;max-height:85%;object-fit:contain"><button class="iconbtn" data-closeshare="1" aria-label="Cerrar foto" style="position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));background:rgba(255,255,255,.18)">'+IC.close+'</button></div>':"");
+  document.getElementById("sheet").innerHTML = (S.busy&&S.view!=="start"?'<div class="busy" role="status"><div><span class="spin"></span>'+esc(S.busy)+'</div></div>':"")+(S.menu?vMenu():"")+(S.crop&&S.crop.img?vCrop():(S.share&&V==="detail")?vShare():zp&&zp.photos.length?'<div class="overlay" style="align-items:center;background:rgba(0,0,0,.92)"><img alt="Foto de '+esc(nm(zp))+'" src="'+zp.photos[Math.min(S.photo,zp.photos.length-1)]+'" style="max-width:100%;max-height:85%;object-fit:contain"><button class="iconbtn" data-closeshare="1" aria-label="Cerrar foto" style="position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));background:rgba(255,255,255,.18)">'+IC.close+'</button></div>':"");
   if(S.crop&&S.crop.img)wireCrop();
   syncGuard();
   if(V==="login"){var lu=document.getElementById("lu");lu&&lu.focus()}
