@@ -46,6 +46,8 @@ function inLocal(p,k){if(k==="todos")return true;var l=locs(last(p));return l.in
 function locText(v,short){var l=locs(v);if(l.indexOf("todos")>=0)return "Todos los locales";return l.map(function(k){var o=LOCALES.filter(function(x){return x.k===k})[0];return o?(short?o.t:o.full):k}).join(", ")}
 function locChips(sel,attr){var all=sel.indexOf("todos")>=0;
   return '<div class="chips">'+'<button type="button" class="chipb" '+attr+'="todos" aria-pressed="'+all+'">Todos los locales</button>'+LOCALES.map(function(o){return '<button type="button" class="chipb" '+attr+'="'+o.k+'" aria-pressed="'+(!all&&sel.indexOf(o.k)>=0)+'">'+o.t+'</button>'}).join("")+'</div>'}
+function partText(v){return (v.parciales||[]).map(function(x){return "Desvetado en "+locText({locales:x.locales},true)+" el "+fmt(x.fecha)})}
+function curLocKeys(v){var l=locs(v);return l.indexOf("todos")>=0?LOCALES.map(function(o){return o.k}):l.filter(function(k){return LOCALES.some(function(o){return o.k===k})})}
 function toggleLoc(arr,k){if(k==="todos")return ["todos"];var a=arr.filter(function(x){return x!=="todos"});var i=a.indexOf(k);if(i>=0)a.splice(i,1);else a.push(k);return a.length?a:["todos"]}
 try{S.loc=localStorage.getItem("squadra.loc")||"todos"}catch(_){S.loc="todos"}
 if(S.loc==="trio")S.loc="tremenda";
@@ -156,16 +158,20 @@ function vDetail(){
     var dd=days(v.desde,TODAY);
     h+='<div class="two"><div class="card"><span class="tsub">Fecha de veto</span><span class="big">'+fmt(v.desde)+'</span><span class="tsub">'+(dd===0?"hoy":"lleva "+span(dd)+" de veto")+'</span></div>'+
       (v.hasta?'<div class="card ok"><span class="tsub" style="color:inherit">Se desveta el</span><span class="big">'+fmt(v.hasta)+'</span><span class="tsub" style="color:inherit">faltan '+span(days(TODAY,v.hasta))+'</span></div>':'<div class="card dashed"><span class="tsub">Fecha de desveto</span><span class="big" style="color:var(--muted)">Sin definir</span></div>')+'</div>';
-    h+='<div class="card"><span class="lbl">Vetado en</span><span style="font-weight:600">'+esc(locText(v))+'</span></div>';
+    h+='<div class="card"><span class="lbl">Vetado en</span><span style="font-weight:600">'+esc(locText(v))+'</span>'+partText(v).map(function(t){return '<span class="tsub" style="color:var(--greentext);font-weight:600">'+esc(t)+'</span>'}).join("")+'</div>';
     h+='<div class="card"><span class="lbl">Motivo</span><span style="line-height:1.45'+(v.motivo?'':';color:var(--muted)')+'">'+(v.motivo?esc(v.motivo):'Sin motivo registrado')+'</span></div>';
     if(v.lugar)h+='<div class="card" style="flex-direction:row;align-items:center;gap:12px"><span style="color:var(--muted)">'+IC.pin+'</span><span style="display:flex;flex-direction:column;gap:2px"><span class="lbl">Lugar del problema</span><span>'+esc(v.lugar||"")+'</span></span></div>';
   } else {
     h+='<div class="two"><div class="card"><span class="tsub">Último veto</span><span class="big">'+fmt(v.desde)+'</span></div><div class="card ok"><span class="tsub" style="color:inherit">Desvetado el</span><span class="big">'+fmt(v.hasta)+'</span></div></div>';
   }
   var list=p.vetos.map(function(x,k){return {x:x,k:k}}).reverse();
-  h+='<div class="card" style="gap:12px"><span class="lbl">Vetos de esta persona ('+n+')</span>'+list.map(function(o){var on=a&&o.k===n-1;return '<div class="vrow"><span class="num'+(on?" on":"")+'">'+(o.k+1)+'°</span><span style="display:flex;flex-direction:column;gap:2px"><span class="t">'+fmt(o.x.desde)+' → '+(o.x.hasta?fmt(o.x.hasta):"sin definir")+'</span><span class="s">Duración: '+(o.x.hasta?span(days(o.x.desde,o.x.hasta)):(days(o.x.desde,TODAY)===0?"sin definir (empezó hoy)":"sin definir (lleva "+span(days(o.x.desde,TODAY))+")"))+'</span><span class="s">Vetado en: '+esc(locText(o.x,true))+'</span>'+(o.x.motivo?'<span class="s">Motivo: '+esc(o.x.motivo)+'</span>':'')+(o.x.lugar?'<span class="s">Lugar: '+esc(o.x.lugar)+'</span>':'')+'</span></div>'}).join("")+'</div>';
+  h+='<div class="card" style="gap:12px"><span class="lbl">Vetos de esta persona ('+n+')</span>'+list.map(function(o){var on=a&&o.k===n-1;return '<div class="vrow"><span class="num'+(on?" on":"")+'">'+(o.k+1)+'°</span><span style="display:flex;flex-direction:column;gap:2px"><span class="t">'+fmt(o.x.desde)+' → '+(o.x.hasta?fmt(o.x.hasta):"sin definir")+'</span><span class="s">Duración: '+(o.x.hasta?span(days(o.x.desde,o.x.hasta)):(days(o.x.desde,TODAY)===0?"sin definir (empezó hoy)":"sin definir (lleva "+span(days(o.x.desde,TODAY))+")"))+'</span><span class="s">Vetado en: '+esc(locText(o.x,true))+'</span>'+partText(o.x).map(function(t){return '<span class="s" style="color:var(--greentext)">'+esc(t)+'</span>'}).join("")+''+(o.x.motivo?'<span class="s">Motivo: '+esc(o.x.motivo)+'</span>':'')+(o.x.lugar?'<span class="s">Lugar: '+esc(o.x.lugar)+'</span>':'')+'</span></div>'}).join("")+'</div>';
   if(admin&&a){
-    h+='<div class="card" style="gap:10px"><label class="field" for="dv">Fecha de desveto<input id="dv" type="date" value="'+(v.hasta||TODAY)+'"></label>'+(S.err?'<span class="err">'+S.err+'</span>':'')+'<button class="btn green" data-desvetar="1">Guardar desveto</button></div>';
+    var cur=curLocKeys(v),dsel=S.dsel&&S.dselFor===p.id?S.dsel:["todos"],dall=dsel.indexOf("todos")>=0;
+    h+='<div class="card" style="gap:10px"><span class="lbl">Desvetar</span>'+
+      (cur.length>1?'<span style="font-size:13px;font-weight:600">¿En qué locales se desveta?</span><div class="chips"><button type="button" class="chipb" data-dloc="todos" aria-pressed="'+dall+'">Todos los locales</button>'+cur.map(function(k){var o=LOCALES.filter(function(x){return x.k===k})[0];return '<button type="button" class="chipb" data-dloc="'+k+'" aria-pressed="'+(!dall&&dsel.indexOf(k)>=0)+'">'+esc(o?o.t:k)+'</button>'}).join("")+'</div>'+
+        (dall?'':'<span class="tsub" style="font-size:12px">Sigue vetado en: '+esc(cur.filter(function(k){return dsel.indexOf(k)<0}).map(function(k){var o=LOCALES.filter(function(x){return x.k===k})[0];return o?o.t:k}).join(", ")||"ninguno")+'</span>'):'')+
+      '<label class="field" for="dv">Fecha de desveto<input id="dv" type="date" value="'+(v.hasta||TODAY)+'"></label>'+(S.err?'<span class="err">'+S.err+'</span>':'')+'<button class="btn green" data-desvetar="1">'+(dall?'Desvetar en todos':'Desvetar en los locales marcados')+'</button></div>';
   } else if(admin){
     h+='<button class="btn red" data-revetar="1">Volver a vetar</button>';
   } else {
@@ -274,7 +280,7 @@ function untilOf(f){if(f.dur==="0")return null;if(f.dur==="otra")return f.otra||
 function vHist(){
   var rows=[];S.people.forEach(function(p){p.vetos.forEach(function(v,k){rows.push({p:p,v:v,k:k,on:k===p.vetos.length-1&&active(p)})})});
   rows.sort(function(a,b){return b.v.desde<a.v.desde?-1:1});
-  return header("Historial de vetos","list")+'<div class="body" style="gap:10px"><span class="tsub" style="font-size:13px">'+rows.length+' vetos guardados, del más reciente al más antiguo.</span>'+rows.map(function(r){return '<button class="hrow" data-open="'+r.p.id+'"><span class="hface" style="'+face(r.p)+'">'+faceTxt(r.p)+'</span><span class="info"><span class="row between" style="gap:8px"><span style="font-size:14px;font-weight:600">'+esc(nm(r.p))+' <span style="font-weight:500;color:var(--muted)">· '+(r.k+1)+'° veto</span></span><span class="tag '+(r.on?"r":"g")+'">'+(r.on?"VETADO":"DESVETADO")+'</span></span>'+(r.v.motivo?'<span class="why">'+esc(r.v.motivo)+'</span>':'')+(r.v.lugar?'<span class="why">Lugar: '+esc(r.v.lugar)+'</span>':'')+'<span class="why">Vetado en: '+esc(locText(r.v,true))+'</span><span style="font-size:12px"><b>Veto:</b> '+fmt(r.v.desde)+' · <b>Desveto:</b> '+(r.v.hasta?fmt(r.v.hasta):"sin definir")+'</span></span></button>'}).join("")+'</div>';
+  return header("Historial de vetos","list")+'<div class="body" style="gap:10px"><span class="tsub" style="font-size:13px">'+rows.length+' vetos guardados, del más reciente al más antiguo.</span>'+rows.map(function(r){return '<button class="hrow" data-open="'+r.p.id+'"><span class="hface" style="'+face(r.p)+'">'+faceTxt(r.p)+'</span><span class="info"><span class="row between" style="gap:8px"><span style="font-size:14px;font-weight:600">'+esc(nm(r.p))+' <span style="font-weight:500;color:var(--muted)">· '+(r.k+1)+'° veto</span></span><span class="tag '+(r.on?"r":"g")+'">'+(r.on?"VETADO":"DESVETADO")+'</span></span>'+(r.v.motivo?'<span class="why">'+esc(r.v.motivo)+'</span>':'')+(r.v.lugar?'<span class="why">Lugar: '+esc(r.v.lugar)+'</span>':'')+'<span class="why">Vetado en: '+esc(locText(r.v,true))+'</span>'+partText(r.v).map(function(t){return '<span class="why" style="color:var(--greentext)">'+esc(t)+'</span>'}).join("")+'<span style="font-size:12px"><b>Veto:</b> '+fmt(r.v.desde)+' · <b>Desveto:</b> '+(r.v.hasta?fmt(r.v.hasta):"sin definir")+'</span></span></button>'}).join("")+'</div>';
 }
 
 function render(){
@@ -375,16 +381,29 @@ document.addEventListener("click",function(e){
     var gp=find(S.edit.pid);S.confirmDel=false;
     save("Borrando…",Backend.deletePerson(gp.id),function(){S.edit=null;go("list");notify("Registro borrado: "+nm(gp))});return}
   if(d.edit){var pe=find(S.id);S.confirmDel=false;
-    withPhotos(pe,function(){S.edit={pid:pe.id,name:pe.name||"",photos:pe.photos.slice(),ids:pe.photoIds.slice(),vk:pe.vetos.length-1,vetos:pe.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta,motivo:x.motivo,lugar:x.lugar,locales:locs(x).slice()}})};go("edit")});return}
+    withPhotos(pe,function(){S.edit={pid:pe.id,name:pe.name||"",photos:pe.photos.slice(),ids:pe.photoIds.slice(),vk:pe.vetos.length-1,vetos:pe.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta,motivo:x.motivo,lugar:x.lugar,locales:locs(x).slice(),parciales:(x.parciales||[]).slice()}})};go("edit")});return}
   if(d.vk){syncEdit();S.edit.vk=+d.vk;S.err="";render();return}
   if(d.delph){syncEdit();S.edit.photos.splice(+d.delph,1);S.edit.ids.splice(+d.delph,1);render();return}
   if(d.revetar){var pr=find(S.id);S.form=newForm({mode:"antes",pid:S.id,fromDetail:true,locales:locs(last(pr)).slice()});go("form");ensurePhotos(pr);return}
   if(d.mode){syncForm();S.form.mode=d.mode;S.form.pid=null;S.err="";render();return}
   if(d.dur){syncForm();S.form.dur=d.dur;render();return}
+  if(d.dloc){var pp0=find(S.id);var cur0=curLocKeys(last(pp0));var ds=S.dsel&&S.dselFor===pp0.id?S.dsel:["todos"];
+    if(d.dloc==="todos")ds=["todos"];else{ds=ds.filter(function(x){return x!=="todos"});var ix=ds.indexOf(d.dloc);if(ix>=0)ds.splice(ix,1);else ds.push(d.dloc);if(!ds.length||cur0.every(function(k){return ds.indexOf(k)>=0}))ds=["todos"]}
+    var keepDv=document.getElementById("dv")?document.getElementById("dv").value:"";S.dsel=ds;S.dselFor=pp0.id;S.err="";render();if(keepDv)document.getElementById("dv").value=keepDv;return}
   if(d.desvetar){var dv=document.getElementById("dv").value,p=find(S.id),v=last(p);
     if(!dv){S.err="Escoja la fecha de desveto.";render();return}
     if(dv<v.desde){S.err="La fecha de desveto no puede ser antes de la fecha de veto ("+fmt(v.desde)+").";render();return}
-    var nv=p.vetos.map(function(x){return Object.assign({},x)});nv[nv.length-1].hasta=dv;S.err="";
+    var dsel=S.dsel&&S.dselFor===p.id?S.dsel:["todos"],cur=curLocKeys(v);
+    if(dsel.indexOf("todos")<0){
+      var rest=cur.filter(function(k){return dsel.indexOf(k)<0});
+      if(rest.length){
+        if(dv>TODAY){S.err="Para desvetar solo en algunos locales use la fecha de hoy o una anterior.";render();return}
+        var pv=p.vetos.map(function(x){return Object.assign({},x)}),lv=pv[pv.length-1];
+        lv.locales=rest;lv.parciales=(lv.parciales||[]).concat([{fecha:dv,locales:dsel.slice()}]);S.err="";S.dsel=null;
+        var where=locText({locales:dsel},true);
+        save("Guardando…",Backend.setVetos(p.id,pv),function(){notify(nm(p)+": desvetado en "+where)});return}
+    }
+    var nv=p.vetos.map(function(x){return Object.assign({},x)});nv[nv.length-1].hasta=dv;S.err="";S.dsel=null;
     save("Guardando…",Backend.setVetos(p.id,nv),function(){notify(dv<=TODAY?"Desvetado: "+nm(p):nm(p)+" se desveta el "+fmt(dv))});return}
 });
 document.addEventListener("input",function(e){
@@ -438,7 +457,7 @@ document.addEventListener("submit",function(e){
     var keep=E.ids.filter(Boolean),removed=pp.photoIds.filter(function(id){return keep.indexOf(id)<0});
     var added=E.photos.filter(function(s,k){return !E.ids[k]});
     var order=E.ids.map(function(id,k){return id||null});
-    var data={name:E.name.trim(),vetos:E.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta||null,motivo:(x.motivo||"").trim(),lugar:(x.lugar||"").trim(),locales:locs(x).slice()}}),
+    var data={name:E.name.trim(),vetos:E.vetos.map(function(x){return {desde:x.desde,hasta:x.hasta||null,motivo:(x.motivo||"").trim(),lugar:(x.lugar||"").trim(),locales:locs(x).slice(),parciales:(x.parciales||[]).slice()}}),
       remove:removed,keepOrder:order,photos:E.photos,photosChanged:removed.length>0||added.length>0||E.ids.join()!==pp.photoIds.join()};
     save("Guardando cambios…",Backend.updatePerson(pp.id,data),function(){S.edit=null;go("detail",{id:pp.id,photo:0});ensurePhotos(find(pp.id));notify("Cambios guardados: "+nm(pp))});return}
   if(e.target.id==="vform"){
