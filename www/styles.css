@@ -145,7 +145,7 @@ h1{margin:0;font-family:var(--display);font-weight:800;font-size:24px;text-wrap:
 
 .locs{display:flex;gap:8px;overflow-x:auto;padding:14px 16px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .locs::-webkit-scrollbar{display:none}
-.loc{flex:0 0 auto;min-height:52px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--fg);padding:6px 14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left}
+.loc{flex:0 0 auto;min-height:44px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--fg);padding:6px 14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left}
 .loc .lt{font-weight:700;font-size:14px;white-space:nowrap}
 .loc .ln{display:inline-block;min-width:20px;padding:0 6px;border-radius:9px;background:var(--chip);font-size:11px;text-align:center;margin-left:2px}
 .loc .ld{font-size:11px;color:var(--muted);white-space:nowrap}

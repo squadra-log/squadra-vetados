@@ -24,19 +24,23 @@ var S = {people:[],accounts:[],photoCache:{},ready:false,busy:"",offline:false,m
 
 function last(p){return p.vetos[p.vetos.length-1]}
 var LOCALES=[
-  {k:"solar",t:"Solar",d:"Solar · Sunsed",full:"Solar (Solar y Sunsed)"},
-  {k:"trio",t:"Tremenda",d:"Tremenda · Delirio · Escobar",full:"Tremenda (Tremenda, Delirio y Escobar)"},
-  {k:"once",t:"Once Once",d:"Once Once",full:"Once Once"},
-  {k:"otros",t:"Otros",d:"Otros locales",full:"Otros locales"}];
+  {k:"solar",t:"Solar",full:"Solar"},
+  {k:"sunsed",t:"Sunsed",full:"Sunsed"},
+  {k:"tremenda",t:"Tremenda",full:"Tremenda"},
+  {k:"delirio",t:"Delirio",full:"Delirio"},
+  {k:"escobar",t:"Escobar",full:"Escobar"},
+  {k:"once",t:"Once Once",full:"Once Once"},
+  {k:"otros",t:"Otros",full:"Otros locales"}];
 var VENUES=["Solar","Sunsed","Tremenda","Delirio","Escobar","Once Once"];
 var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-function locs(v){var l=v&&v.locales;return l&&l.length?l:["todos"]}
+function locs(v){var l=v&&v.locales;if(!l||!l.length)return ["todos"];var out=[];l.forEach(function(k){(k==="trio"?["tremenda","delirio","escobar"]:[k]).forEach(function(x){if(out.indexOf(x)<0)out.push(x)})});return out}
 function inLocal(p,k){if(k==="todos")return true;var l=locs(last(p));return l.indexOf("todos")>=0||l.indexOf(k)>=0}
 function locText(v,short){var l=locs(v);if(l.indexOf("todos")>=0)return "Todos los locales";return l.map(function(k){var o=LOCALES.filter(function(x){return x.k===k})[0];return o?(short?o.t:o.full):k}).join(", ")}
 function locChips(sel,attr){var all=sel.indexOf("todos")>=0;
-  return '<div class="chips">'+'<button type="button" class="chipb" '+attr+'="todos" aria-pressed="'+all+'">Todos los locales</button>'+LOCALES.map(function(o){return '<button type="button" class="chipb" '+attr+'="'+o.k+'" aria-pressed="'+(!all&&sel.indexOf(o.k)>=0)+'">'+o.t+(o.k==="trio"||o.k==="solar"?' <span style="font-weight:400;opacity:.75">('+o.d.replace(/ · /g,", ")+')</span>':'')+'</button>'}).join("")+'</div>'}
+  return '<div class="chips">'+'<button type="button" class="chipb" '+attr+'="todos" aria-pressed="'+all+'">Todos los locales</button>'+LOCALES.map(function(o){return '<button type="button" class="chipb" '+attr+'="'+o.k+'" aria-pressed="'+(!all&&sel.indexOf(o.k)>=0)+'">'+o.t+'</button>'}).join("")+'</div>'}
 function toggleLoc(arr,k){if(k==="todos")return ["todos"];var a=arr.filter(function(x){return x!=="todos"});var i=a.indexOf(k);if(i>=0)a.splice(i,1);else a.push(k);return a.length?a:["todos"]}
 try{S.loc=localStorage.getItem("squadra.loc")||"todos"}catch(_){S.loc="todos"}
+if(S.loc==="trio")S.loc="tremenda";
 function active(p){var v=last(p);return !v.hasta || v.hasta>TODAY}
 function face(p){return p.thumb?"background-image:url("+p.thumb+")":"background:"+p.color}
 function find(id){return S.people.filter(function(p){return p.id===id})[0]}
@@ -87,7 +91,7 @@ function vList(){
   var h=(S.offline?'<div class="offline">Sin internet: está viendo lo último que se cargó.</div>':'')+'<div class="top"><div class="row between"><div class="row"><img class="logo" alt="Squadra Servicios Logísticos" src="'+ICON+'\"><div><div class="eyebrow">Squadra · Control de ingreso</div><h1>Vetados</h1></div></div><div class="row" style="gap:8px">'+(S.me&&S.me.role==="supremo"?'<button class="iconbtn" data-go="accounts" aria-label="Cuentas">'+IC.users+'</button>':'')+'<button class="iconbtn" data-menu="1" aria-label="Mi cuenta">'+IC.exit+'</button><button class="iconbtn" data-go="historial" aria-label="Ver historial">'+IC.hist+'</button></div></div>'+
    (admin?'<span class="role admin">'+(S.me.role==="supremo"?"SOPORTE":"ADMINISTRADOR")+' · '+esc(S.me.name).toUpperCase()+'</span>':'<span class="role view">CONSULTA · '+esc(S.me.name).toUpperCase()+'</span>')+
    '<label class="search" for="q">'+IC.search+'<input id="q" type="search" placeholder="Buscar por nombre" value="'+esc(S.q)+'"></label></div>';
-  h+='<div class="locs" role="group" aria-label="Local">'+LOCALES.concat([{k:"todos",t:"Todos",d:"Todos los locales"}]).map(function(o){var n=S.people.filter(function(p){return inLocal(p,o.k)&&active(p)}).length;return '<button class="loc" data-loc="'+o.k+'" aria-pressed="'+(S.loc===o.k)+'"><span class="lt">'+o.t+' <span class="ln">'+n+'</span></span><span class="ld">'+o.d+'</span></button>'}).join("")+'</div>';
+  h+='<div class="locs" role="group" aria-label="Local">'+LOCALES.concat([{k:"todos",t:"Todos"}]).map(function(o){var n=S.people.filter(function(p){return inLocal(p,o.k)&&active(p)}).length;return '<button class="loc" data-loc="'+o.k+'" aria-pressed="'+(S.loc===o.k)+'"><span class="lt">'+o.t+' <span class="ln">'+n+'</span></span></button>'}).join("")+'</div>';
   h+='<div class="tabs" role="group" aria-label="Estado">'+["vetados","desvetados","todos"].map(function(t){return '<button class="tab" data-tab="'+t+'" aria-pressed="'+(S.tab===t)+'">'+t[0].toUpperCase()+t.slice(1)+'</button>'}).join("")+'</div>';
   var word=S.tab==="todos"?(ps.length===1?"persona":"personas"):(ps.length===1?S.tab.slice(0,-1):S.tab);
   h+='<div class="count">'+ps.length+' '+word+(S.loc!=="todos"?' en <b>'+esc(LOCALES.filter(function(o){return o.k===S.loc})[0].full)+'</b>':'')+' · por <b>'+sortLbl+'</b>, más reciente primero'+(S.tab==="vetados"&&soon&&!q?'<br><span style="color:var(--greentext);font-weight:600">'+soon+(soon===1?" se desveta":" se desvetan")+' en los próximos 7 días</span>':'')+'</div><div class="grid">';
@@ -239,6 +243,7 @@ function render(){
   app.innerHTML = V==="start"?vStart():V==="login"?vLogin():V==="list"?vList():V==="detail"?vDetail():V==="form"?vForm():V==="edit"?vEdit():V==="accounts"?vAccounts():V==="accform"?vAccForm():V==="pwd"?vPwd():vHist();
   var zp=V==="detail"&&S.zoom?find(S.id):null;
   if(V==="detail"&&!find(S.id)){S.view="list";return render()}
+  var lsel=document.querySelector('.loc[aria-pressed="true"]');if(lsel){var lc=lsel.parentNode;lc.scrollLeft=lsel.offsetLeft-lc.offsetLeft-lc.clientWidth/2+lsel.offsetWidth/2}
   document.getElementById("sheet").innerHTML = (S.busy?'<div class="busy" role="status"><div><span class="spin"></span>'+esc(S.busy)+'</div></div>':"")+(S.menu?vMenu():"")+(S.crop&&S.crop.img?vCrop():(S.share&&V==="detail")?vShare():zp&&zp.photos.length?'<div class="overlay" style="align-items:center;background:rgba(0,0,0,.92)"><img alt="Foto de '+esc(nm(zp))+'" src="'+zp.photos[Math.min(S.photo,zp.photos.length-1)]+'" style="max-width:100%;max-height:85%;object-fit:contain"><button class="iconbtn" data-closeshare="1" aria-label="Cerrar foto" style="position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));background:rgba(255,255,255,.18)">'+IC.close+'</button></div>':"");
   if(S.crop&&S.crop.img)wireCrop();
   if(V==="login"){var lu=document.getElementById("lu");lu&&lu.focus()}
