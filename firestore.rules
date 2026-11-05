@@ -30,6 +30,16 @@ service cloud.firestore {
       allow update, delete: if soporte();
     }
 
+    // Dispositivos donde cada cuenta tiene la sesión iniciada
+    match /cuentas/{uid}/dispositivos/{did} {
+      allow read: if signedIn() && (request.auth.uid == uid || soporte());
+      allow create, update: if signedIn() && request.auth.uid == uid && activo();
+      allow delete: if signedIn() && (request.auth.uid == uid || soporte());
+    }
+    match /{path=**}/dispositivos/{did} {
+      allow read: if soporte();
+    }
+
     match /personas/{pid} {
       allow read: if activo();
       allow create, update: if admin();

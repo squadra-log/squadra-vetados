@@ -59,6 +59,8 @@ var IC={
  share:'<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
  person:'<svg aria-hidden="true" width="46%" height="46%" viewBox="0 0 24 24" fill="currentColor" opacity=".75"><circle cx="12" cy="8" r="4.5"/><path d="M3 21.5c0-4.7 4-8 9-8s9 3.3 9 8z"/></svg>',
  rot:'<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
+ phone:'<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>',
+ pc:'<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
  pencil:'<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
  pin:'<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'
 };
@@ -211,7 +213,7 @@ function vShare(){
 
 function vAccounts(){
   return header("Cuentas","list")+'<div class="body" style="gap:10px"><span class="tsub" style="font-size:13px">Solo Soporte ve esta pantalla y puede crear, editar o borrar cuentas.</span>'+
-   (S.accLoading?'<div class="empty"><div class="spin" style="margin:0 auto 10px"></div>Cargando cuentas…</div>':'')+S.accounts.map(function(c){return '<button class="hrow" data-accopen="'+esc(c.uid)+'"><span class="hface" style="background:var(--navy)">'+esc(ini(c.name))+'</span><span class="info"><span style="font-size:15px;font-weight:600">'+esc(c.name)+(S.me.uid===c.uid?' <span style="font-weight:500;color:var(--muted)">(usted)</span>':'')+'</span><span class="why">Usuario: '+esc(c.user)+'</span></span>'+roleTag(c)+'</button>'}).join("")+
+   (S.accLoading?'<div class="empty"><div class="spin" style="margin:0 auto 10px"></div>Cargando cuentas…</div>':'')+S.accounts.map(function(c){return '<button class="hrow" data-accopen="'+esc(c.uid)+'"><span class="hface" style="background:var(--navy)">'+esc(ini(c.name))+'</span><span class="info"><span style="font-size:15px;font-weight:600">'+esc(c.name)+(S.me.uid===c.uid?' <span style="font-weight:500;color:var(--muted)">(usted)</span>':'')+'</span><span class="why">Usuario: '+esc(c.user)+(S.devices?' · '+devsOf(c.uid).length+(devsOf(c.uid).length===1?' dispositivo':' dispositivos'):'')+'</span></span>'+roleTag(c)+'</button>'}).join("")+
    '<button class="btn navy" data-accnew="1" style="margin-top:6px">'+IC.plus+'Crear cuenta</button>'+
    '<div class="card" style="gap:8px;margin-top:6px"><span class="lbl">Qué puede hacer cada uno</span><span style="font-size:13px;line-height:1.45"><b>Soporte:</b> todo, y además crea y edita cuentas.</span><span style="font-size:13px;line-height:1.45"><b>Administrador:</b> crea vetos, edita, desveta y vuelve a vetar. Puede tomar capturas y compartir. No crea cuentas.</span><span style="font-size:13px;line-height:1.45"><b>Consulta:</b> para el personal de filtro. Solo ve las fichas: sin capturas de pantalla ni compartir.</span><span style="font-size:13px;line-height:1.45"><b>Desactivada:</b> para quien ya no trabaja con ustedes. Pierde el acceso de inmediato.</span></div></div>'}
 function vAccForm(){
@@ -224,6 +226,7 @@ function vAccForm(){
    '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:600">Tipo de cuenta</span><div class="seg" role="group" aria-label="Tipo de cuenta" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" data-arole="consulta" aria-pressed="'+(A.role==="consulta")+'">Consulta</button><button type="button" data-arole="admin" aria-pressed="'+(A.role==="admin")+'">Admin</button><button type="button" data-arole="supremo" aria-pressed="'+(A.role==="supremo")+'">Soporte</button></div>'+
    '<span class="tsub" style="font-size:12px">'+(A.role==="supremo"?"Soporte: puede hacer todo, tomar capturas y crear o editar cuentas.":A.role==="admin"?"Administrador: crea, edita, desveta y vuelve a vetar. Puede tomar capturas y compartir fichas. No crea cuentas.":"Consulta (filtro): solo ve las fichas. No puede tomar capturas, compartir ni cambiar nada.")+'</span></div>';
   if(A.orig&&!own)h+='<button type="button" class="btn" data-aoff="1" style="height:48px;font-size:15px;background:'+(A.off?"var(--green)":"var(--chip)")+';color:'+(A.off?"#fff":"var(--fg)")+'">'+(A.off?"Activar cuenta otra vez":"Desactivar cuenta (quitar acceso)")+'</button>'+(A.off?'<span class="err">Esta cuenta está desactivada: no puede entrar.</span>':'');
+  if(A.orig)h+=vDevices(A.orig);
   if(S.err)h+='<span class="err">'+S.err+'</span>';
   h+='<button class="btn navy" type="submit">'+(A.orig?"Guardar cambios":"Crear cuenta")+'</button>';
   if(A.orig&&!own)h+='<button type="button" class="btn" data-delacc="1" style="background:'+(S.confirmDel?"var(--red)":"transparent")+';color:'+(S.confirmDel?"#fff":"var(--redtext)")+';border:1.5px solid var(--red);height:48px;font-size:15px">'+(S.confirmDel?"Toque otra vez para borrar la cuenta":"Borrar cuenta")+'</button>';
@@ -305,6 +308,9 @@ document.addEventListener("click",function(e){
     try{navigator.clipboard.writeText(txt.value).then(ok,fb)}catch(_){fb()}return}
   if(d.accnew){S.acc={orig:null,name:"",user:"",pass:"",role:"consulta",off:false};S.confirmDel=false;go("accform");return}
   if(d.accopen){var c=S.accounts.filter(function(x){return x.uid===d.accopen})[0];S.acc={orig:c.uid,name:c.name,user:c.user,pass:"",role:c.role,off:!!c.off};S.confirmDel=false;go("accform");return}
+  if(d.closedev){syncAcc();var cu=S.acc.orig,cid=d.closedev,dv=devsOf(cu).filter(function(x){return x.id===cid})[0];
+    save("Cerrando sesión…",Backend.closeDevice(cu,cid),function(){openAccounts(true);notify("Sesión cerrada en "+(dv?dv.tipo:"el dispositivo"))});return}
+  if(d.closealldev){syncAcc();var ca=S.acc.orig;save("Cerrando sesiones…",Backend.closeAllDevices(ca),function(){openAccounts(true);notify("Se cerraron todas las sesiones de esa cuenta")});return}
   if(d.aoff){syncAcc();S.acc.off=!S.acc.off;render();return}
   if(d.arole){syncAcc();S.acc.role=d.arole;S.err="";render();return}
   if(d.delacc){syncAcc();if(!S.confirmDel){S.confirmDel=true;render();return}
@@ -441,8 +447,22 @@ function addDetailPhoto(src){var p=find(S.id);if(!p)return;
   withPhotos(p,function(){save("Guardando foto…",Backend.updatePerson(p.id,{name:p.name,vetos:p.vetos,remove:[],keepOrder:p.photoIds.concat([null]),photos:p.photos.concat([src]),photosChanged:true}),function(){ensurePhotos(find(p.id))})})}
 
 /* Cuentas */
-function openAccounts(){S.accLoading=true;go("accounts");
-  Backend.listAccounts().then(function(list){S.accLoading=false;S.accounts=list.sort(function(a,b){return a.name.localeCompare(b.name)});render()},function(err){S.accLoading=false;S.err=Backend.message(err);render()})}
+function openAccounts(stay){S.accLoading=true;if(!stay)go("accounts");else render();
+  Promise.all([Backend.listAccounts(),Backend.listDevices().catch(function(){return null})]).then(function(r){S.accLoading=false;if(!S.me||(S.view!=="accounts"&&S.view!=="accform"))return;S.accounts=r[0].sort(function(a,b){return a.name.localeCompare(b.name)});S.devices=r[1];render()},function(err){S.accLoading=false;S.err=Backend.message(err);render()})}
+function devsOf(uid){return (S.devices||[]).filter(function(d){return d.uid===uid}).sort(function(a,b){return b.ultimoUso-a.ultimoUso})}
+function ago(ms){if(!ms)return "—";var m=Math.round((Date.now()-ms)/60000);if(m<2)return "ahora";if(m<60)return "hace "+m+" min";var h=Math.round(m/60);if(h<24)return "hace "+h+(h===1?" hora":" horas");var d=new Date(ms);return fmt(iso(d))}
+function vDevices(uid){
+  if(!S.me)return "";
+  if(S.devices===null)return '<div class="card"><span class="lbl">Dispositivos con sesión iniciada</span><span class="tsub">No se pudo cargar la lista. Revise que las reglas nuevas estén publicadas en Firebase.</span></div>';
+  var ds=devsOf(uid);
+  return '<div class="card" style="gap:10px"><span class="lbl">Dispositivos con sesión iniciada ('+ds.length+')</span>'+
+   (ds.length?ds.map(function(d){var mine=d.uid===S.me.uid&&d.id===Backend.deviceId();
+     return '<div class="vrow" style="align-items:center"><span class="num" style="width:40px;height:40px;border-radius:12px">'+(/Computador/.test(d.tipo)?IC.pc:IC.phone)+'</span>'+
+      '<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span class="t">'+esc(d.tipo)+(mine?' <span style="font-weight:500;color:var(--muted)">(este)</span>':'')+'</span>'+(d.detalle?'<span class="s">'+esc(d.detalle)+'</span>':'')+
+      '<span class="s">Último uso: '+ago(d.ultimoUso)+' · Entró: '+(d.inicio?fmt(iso(new Date(d.inicio))):"—")+'</span></span>'+
+      '<button type="button" data-closedev="'+esc(d.id)+'" style="border:1.5px solid var(--red);background:transparent;color:var(--redtext);border-radius:12px;height:40px;padding:0 12px;font-weight:700;font-size:13px">Cerrar</button></div>'}).join(""):'<span class="tsub">Esta cuenta no tiene ninguna sesión abierta.</span>')+
+   (ds.length>1?'<button type="button" class="btn" data-closealldev="1" style="height:44px;font-size:14px;background:var(--chip);color:var(--redtext)">Cerrar sesión en todos</button>':'')+
+   '<span class="tsub" style="font-size:12px">Al cerrar, ese dispositivo sale de la app de inmediato. Para que no pueda volver a entrar, desactive la cuenta.</span></div>'}
 
 /* Menú "Mi cuenta" */
 function vMenu(){return '<div class="overlay"><div class="sheet" role="dialog" aria-label="Mi cuenta">'+

@@ -9,10 +9,31 @@
   function plugin(name){ if (!native()) return null; try{ return (Capacitor.Plugins && Capacitor.Plugins[name]) || (Capacitor.registerPlugin ? Capacitor.registerPlugin(name) : null); }catch(e){ return null; } }
   B.isNative = native;
 
+  /* Identificación del dispositivo (para que Soporte vea dónde hay sesión iniciada) */
+  function deviceId(){
+    try { var d = localStorage.getItem("squadra.device"); if (!d) { d = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); localStorage.setItem("squadra.device", d); } return d; }
+    catch(e) { return "sin-id"; }
+  }
+  function deviceInfo(){
+    var ua = navigator.userAgent || "", tipo, detalle = "";
+    var m = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/);
+    if (native()) { tipo = "App Android"; detalle = m ? m[1].trim() : ""; }
+    else if (/iPhone/.test(ua)) tipo = "iPhone";
+    else if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) tipo = "iPad";
+    else if (/Android/.test(ua)) { tipo = "Celular Android (navegador)"; detalle = m ? m[1].trim() : ""; }
+    else tipo = "Computador";
+    var nav = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
+    var so = /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua) ? "Mac" : /Linux/.test(ua) && !/Android/.test(ua) ? "Linux" : "";
+    if (!native()) detalle = [detalle, nav, so].filter(Boolean).join(" · ");
+    return { tipo: tipo, detalle: detalle, version: (window.SQUADRA && window.SQUADRA.v) || 0 };
+  }
+  B.deviceId = deviceId;
+  B.deviceInfo = deviceInfo;
+
   if (typeof firebase === "undefined") {
     // Sin la librería de Firebase no se puede hacer nada: se muestra un aviso claro.
     B.onSession = function(cb){ setTimeout(function(){ cb(null, "No hay conexión a internet. Revise la conexión y vuelva a abrir la app."); }, 0); };
-    ["needsSetup","login","setup","logout","watchPeople","getPhotos","createPerson","addVeto","setVetos","updatePerson","deletePerson","listAccounts","createAccount","updateAccount","deleteAccount","changePassword","shareImage"].forEach(function(k){
+    ["needsSetup","login","setup","logout","watchPeople","getPhotos","createPerson","addVeto","setVetos","updatePerson","deletePerson","listAccounts","createAccount","updateAccount","deleteAccount","changePassword","shareImage","listDevices","closeDevice","closeAllDevices"].forEach(function(k){
       B[k] = function(){ return Promise.reject(new Error("offline")); };
     });
     B.needsSetup = function(){ return Promise.resolve(false); };
@@ -41,23 +62,54 @@
   };
 
   /* ---------- Sesión ---------- */
-  var stopMe = null, kickReason = "";
+  var stopMe = null, stopDev = null, kickReason = "", freshLogin = false, beat = null;
+  function devRef(uid){ return db.doc("cuentas/" + uid + "/dispositivos/" + deviceId()); }
+  function startDevice(uid){
+    var ref = devRef(uid), info = deviceInfo(), reg = false;
+    try { reg = localStorage.getItem("squadra.devreg") === uid; } catch(e) {}
+    if (freshLogin || !reg) {
+      freshLogin = false;
+      ref.set({ tipo: info.tipo, detalle: info.detalle, version: info.version, inicio: ts(), ultimoUso: ts() }).catch(function(){});
+      try { localStorage.setItem("squadra.devreg", uid); } catch(e) {}
+    } else {
+      ref.update({ ultimoUso: ts(), version: info.version }).catch(function(){});
+    }
+    // Si Soporte cierra la sesión de este dispositivo, se sale de inmediato.
+    stopDev = ref.onSnapshot({ includeMetadataChanges: true }, function(d){
+      if (!d.exists && !d.metadata.fromCache && !d.metadata.hasPendingWrites) B.logout("Soporte cerró la sesión en este dispositivo.", true);
+    }, function(){});
+    clearInterval(beat);
+    beat = setInterval(function(){ if (!document.hidden) ref.update({ ultimoUso: ts() }).catch(function(){}); }, 10 * 60 * 1000);
+  }
+  function stopDevice(){ if (stopDev) { stopDev(); stopDev = null; } clearInterval(beat); beat = null; }
   B.onSession = function(cb){
     auth.onAuthStateChanged(function(user){
       if (stopMe) { stopMe(); stopMe = null; }
+      stopDevice();
       if (!user) { var r = kickReason; kickReason = ""; cb(null, r); return; }
+      var started = false;
       stopMe = db.doc("cuentas/" + user.uid).onSnapshot(function(d){
-        if (!d.exists) { B.logout("Esta cuenta no tiene acceso. Hable con Soporte."); return; }
+        if (!d.exists) { B.logout("Esta cuenta no tiene acceso. Hable con Soporte.", true); return; }
         var a = d.data();
-        if (!a.activo) { B.logout("Esta cuenta está desactivada. Hable con Soporte."); return; }
+        if (!a.activo) { B.logout("Esta cuenta está desactivada. Hable con Soporte.", true); return; }
+        if (!started) { started = true; startDevice(user.uid); }
         cb({ uid: user.uid, user: a.usuario, name: a.nombre, role: a.rol });
-      }, function(){ B.logout("No se pudo verificar la cuenta. Vuelva a entrar."); });
+      }, function(){ B.logout("No se pudo verificar la cuenta. Vuelva a entrar.", true); });
     });
   };
   B.needsSetup = function(){ return db.doc("sistema/listo").get().then(function(d){ return !d.exists; }); };
-  B.login = function(u, p){ return auth.signInWithEmailAndPassword(email(u), p); };
-  B.logout = function(reason){ kickReason = reason || ""; return auth.signOut(); };
+  B.login = function(u, p){ freshLogin = true; return auth.signInWithEmailAndPassword(email(u), p).catch(function(e){ freshLogin = false; throw e; }); };
+  B.logout = function(reason, kicked){
+    kickReason = reason || "";
+    stopDevice();
+    try { localStorage.removeItem("squadra.devreg"); } catch(e) {}
+    var u = auth.currentUser;
+    // Al salir por su cuenta, se borra este dispositivo de la lista de sesiones.
+    var clean = (!kicked && u) ? devRef(u.uid).delete().catch(function(){}) : Promise.resolve();
+    return clean.then(function(){ return auth.signOut(); });
+  };
   B.setup = function(o){
+    freshLogin = true;
     return auth.createUserWithEmailAndPassword(email(o.user), o.pass).then(function(c){
       var b = db.batch();
       b.set(db.doc("cuentas/" + c.user.uid), { usuario: o.user, nombre: o.name, rol: "supremo", activo: true, creado: ts() });
@@ -166,7 +218,18 @@
     });
   };
   B.updateAccount = function(uid, o){ return db.doc("cuentas/" + uid).update({ nombre: o.name, rol: o.role, activo: !o.off }); };
-  B.deleteAccount = function(uid){ return db.doc("cuentas/" + uid).delete(); };
+  B.deleteAccount = function(uid){
+    return db.collection("cuentas/" + uid + "/dispositivos").get().then(function(s){
+      var b = db.batch(); s.docs.forEach(function(d){ b.delete(d.ref); }); b.delete(db.doc("cuentas/" + uid)); return b.commit();
+    });
+  };
+  function devConv(d){ var x = d.data(); return { id: d.id, uid: d.ref.parent.parent.id, tipo: x.tipo || "Dispositivo", detalle: x.detalle || "", version: x.version || 0,
+    inicio: x.inicio && x.inicio.toDate ? x.inicio.toDate().getTime() : 0, ultimoUso: x.ultimoUso && x.ultimoUso.toDate ? x.ultimoUso.toDate().getTime() : 0 }; }
+  B.listDevices = function(){ return db.collectionGroup("dispositivos").get().then(function(s){ return s.docs.map(devConv); }); };
+  B.closeDevice = function(uid, id){ return db.doc("cuentas/" + uid + "/dispositivos/" + id).delete(); };
+  B.closeAllDevices = function(uid){
+    return db.collection("cuentas/" + uid + "/dispositivos").get().then(function(s){ var b = db.batch(); s.docs.forEach(function(d){ b.delete(d.ref); }); return b.commit(); });
+  };
 
   /* ---------- Funciones del celular ---------- */
   var Seguridad = plugin("Seguridad"), Share = plugin("Share"), Files = plugin("Filesystem"), Local = plugin("LocalNotifications");
