@@ -246,6 +246,7 @@ function render(){
   var lsel=document.querySelector('.loc[aria-pressed="true"]');if(lsel){var lc=lsel.parentNode;lc.scrollLeft=lsel.offsetLeft-lc.offsetLeft-lc.clientWidth/2+lsel.offsetWidth/2}
   document.getElementById("sheet").innerHTML = (S.busy?'<div class="busy" role="status"><div><span class="spin"></span>'+esc(S.busy)+'</div></div>':"")+(S.menu?vMenu():"")+(S.crop&&S.crop.img?vCrop():(S.share&&V==="detail")?vShare():zp&&zp.photos.length?'<div class="overlay" style="align-items:center;background:rgba(0,0,0,.92)"><img alt="Foto de '+esc(nm(zp))+'" src="'+zp.photos[Math.min(S.photo,zp.photos.length-1)]+'" style="max-width:100%;max-height:85%;object-fit:contain"><button class="iconbtn" data-closeshare="1" aria-label="Cerrar foto" style="position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));background:rgba(255,255,255,.18)">'+IC.close+'</button></div>':"");
   if(S.crop&&S.crop.img)wireCrop();
+  syncGuard();
   if(V==="login"){var lu=document.getElementById("lu");lu&&lu.focus()}
 }
 
@@ -521,5 +522,28 @@ Backend.onSession(function(me,reason){
 });
 window.addEventListener("online",function(){S.offline=false;render()});
 window.addEventListener("offline",function(){S.offline=true;render()});
+/* Botón "atrás" del celular (y del navegador): vuelve a la pantalla anterior en vez de cerrar la app */
+var guard=false,consuming=false;
+function overlayOpen(){return !!(S.crop||S.share||S.zoom||S.menu)}
+function syncGuard(){
+  var needs=(S.view!=="list"&&S.view!=="start")||overlayOpen();
+  if(needs&&!guard){try{history.pushState({squadra:1},"");guard=true}catch(_){}}
+  else if(!needs&&guard){guard=false;consuming=true;try{history.back()}catch(_){consuming=false}}
+}
+function appBack(){
+  if(S.busy){syncGuard();return}
+  if(S.crop){S.crop=null;render();return}
+  if(S.zoom||S.share||S.menu){S.zoom=false;S.share=false;S.menu=false;render();return}
+  var V=S.view;
+  if(V==="edit"){S.edit=null;go("detail");return}
+  if(V==="form"){var fd=S.form&&S.form.fromDetail;S.form=null;go(fd?"detail":"list");return}
+  if(V==="accform"){S.acc=null;go("accounts");return}
+  if(V==="detail"||V==="historial"||V==="accounts"||V==="pwd"){go("list");return}
+  render();
+}
+window.addEventListener("popstate",function(){
+  if(consuming){consuming=false;return}
+  guard=false;appBack();
+});
 render();
 window.__squadraReady=true;
