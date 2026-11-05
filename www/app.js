@@ -522,3 +522,4 @@ Backend.onSession(function(me,reason){
 window.addEventListener("online",function(){S.offline=false;render()});
 window.addEventListener("offline",function(){S.offline=true;render()});
 render();
+window.__squadraReady=true;

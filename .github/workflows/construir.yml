@@ -40,6 +40,11 @@ jobs:
             curl -fsSL -o www/vendor/firebase-$f-compat.js https://www.gstatic.com/firebasejs/$FIREBASE_VERSION/firebase-$f-compat.js
           done
 
+      - name: Marcar la versión (para las actualizaciones dentro de la app)
+        run: |
+          echo "{\"v\": ${{ github.run_number }}, \"native\": $(cat native/VERSION), \"minNative\": $(cat native/MIN_NATIVE)}" > www/version.json
+          cat www/version.json
+
       - name: Crear proyecto Android
         run: |
           npx cap add android
