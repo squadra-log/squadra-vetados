@@ -183,13 +183,13 @@
     var b64 = dataUrl.split(",")[1];
     if (Share && Files) {
       return Files.writeFile({ path: "ficha-veto.png", data: b64, directory: "CACHE" }).then(function(r){
-        return Share.share({ title: "Ficha de veto", text: text, files: [r.uri], dialogTitle: "Compartir ficha" });
+        var o = { title: "Ficha de veto", files: [r.uri], dialogTitle: "Compartir ficha" }; if (text) o.text = text; return Share.share(o);
       });
     }
     var bin = atob(b64), arr = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     var file = new File([arr], "ficha-veto.png", { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file], text: text });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { var d = { files: [file] }; if (text) d.text = text; return navigator.share(d); }
     return Promise.reject(new Error("no-share"));
   };
 

@@ -8,7 +8,8 @@ var TODAY = iso(new Date());
 function parse(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
 function fmt(s){if(!s)return "—";var d=parse(s);return String(d.getDate()).padStart(2,"0")+" "+MES[d.getMonth()]+" "+d.getFullYear()}
 function addMonths(s,m){var d=parse(s);var day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+m);var last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last));return iso(d)}
-function nm(p){return p.name&&p.name.trim()?p.name:"Sin nombre"}
+function nm(p){return p.name&&p.name.trim()?p.name:"Vetado el "+fmt(last(p).desde)}
+function named(p){return !!(p.name&&p.name.trim())}
 function faceTxt(p){return p.thumb?"":(p.name&&p.name.trim()?esc(ini(p.name)):IC.person)}
 function span(n){n=Math.abs(n);if(n===0)return "hoy";if(n===1)return "1 día";if(n<14)return n+" días";if(n<60){var w=Math.round(n/7);return w+(w===1?" semana":" semanas")}var m=Math.round(n/30.4);if(m<12)return m+(m===1?" mes":" meses");var y=Math.floor(n/365),r=Math.round((n-y*365)/30.4);return y+(y===1?" año":" años")+(r?" y "+r+(r===1?" mes":" meses"):"")}
 function norm(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim()}
@@ -23,11 +24,11 @@ var S = {people:[],accounts:[],photoCache:{},ready:false,busy:"",offline:false,m
 
 function last(p){return p.vetos[p.vetos.length-1]}
 var LOCALES=[
-  {k:"solar",t:"Solar",d:"Solar · Sinsed",full:"Solar y Sinsed"},
-  {k:"trio",t:"El Trío",d:"Tremenda · Delirio · Escobar",full:"El Trío (Tremenda, Delirio y Escobar)"},
+  {k:"solar",t:"Solar",d:"Solar · Sunsed",full:"Solar (Solar y Sunsed)"},
+  {k:"trio",t:"Tremenda",d:"Tremenda · Delirio · Escobar",full:"Tremenda (Tremenda, Delirio y Escobar)"},
   {k:"once",t:"Once Once",d:"Once Once",full:"Once Once"},
   {k:"otros",t:"Otros",d:"Otros locales",full:"Otros locales"}];
-var VENUES=["Solar","Sinsed","Tremenda","Delirio","Escobar","Once Once"];
+var VENUES=["Solar","Sunsed","Tremenda","Delirio","Escobar","Once Once"];
 var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 function locs(v){var l=v&&v.locales;return l&&l.length?l:["todos"]}
 function inLocal(p,k){if(k==="todos")return true;var l=locs(last(p));return l.indexOf("todos")>=0||l.indexOf(k)>=0}
@@ -96,7 +97,7 @@ function vList(){
     var md=(S.tab==="desvetados"?v.hasta:v.desde)||"",mk=md.slice(0,7);
     if(mk&&mk!==lastMonth){lastMonth=mk;var cnt=ps.filter(function(x){var y=last(x);return ((S.tab==="desvetados"?y.hasta:y.desde)||"").slice(0,7)===mk}).length;
       h+='<div class="month"><span>'+MESES[+mk.slice(5,7)-1]+' '+mk.slice(0,4)+'</span><span class="mc">'+cnt+'</span></div>'}
-    h+='<button class="tile" data-open="'+p.id+'"><span class="face" style="'+face(p)+'">'+faceTxt(p)+(n>1&&a?'<span class="nth">'+n+'° veto</span>':'')+'<span class="badge '+(a?"r":"g")+'">'+(a?"VETADO":"DESVETADO")+'</span></span><span class="tname">'+esc(nm(p))+'</span><span class="tsub">'+(a?"desde "+fmt(v.desde):"desde "+fmt(v.hasta))+'</span>'+(a&&v.hasta&&days(TODAY,v.hasta)<=7?'<span class="tsub" style="color:var(--greentext);font-weight:600">sale en '+span(days(TODAY,v.hasta))+'</span>':'')+(S.loc==="todos"&&a?'<span class="tloc">'+esc(locText(v,true))+'</span>':'')+'</button>'});
+    h+='<button class="tile" data-open="'+p.id+'"><span class="face" style="'+face(p)+'">'+faceTxt(p)+(n>1&&a?'<span class="nth">'+n+'° veto</span>':'')+'<span class="badge '+(a?"r":"g")+'">'+(a?"VETADO":"DESVETADO")+'</span></span><span class="tname">'+(named(p)?esc(p.name):'&nbsp;')+'</span><span class="tsub">'+(a?"desde "+fmt(v.desde):"desde "+fmt(v.hasta))+'</span>'+(a&&v.hasta&&days(TODAY,v.hasta)<=7?'<span class="tsub" style="color:var(--greentext);font-weight:600">sale en '+span(days(TODAY,v.hasta))+'</span>':'')+(S.loc==="todos"&&a?'<span class="tloc">'+esc(locText(v,true))+'</span>':'')+'</button>'});
   h+='</div>';
   if(admin)h+='<button class="fab" data-new="1">'+IC.plus+'Nuevo veto</button>';
   return h;
@@ -151,7 +152,7 @@ function vForm(){
     var opts=S.people.filter(function(x){return !active(x)&&(!q||norm(x.name||"").indexOf(q)>=0)}).sort(function(a,b){return last(b).hasta<last(a).hasta?-1:1});
     h+='<span style="font-size:13px;font-weight:600">Toque la cara de la persona</span>'+
       '<label class="search" for="pq" style="background:var(--card);border:1px solid var(--line)">'+IC.search.replace('#B9C7DA','currentColor')+'<input id="pq" type="search" placeholder="Filtrar por nombre (si se sabe)" value="'+esc(f.pq||"")+'" style="color:var(--fg)"></label>'+
-      '<div class="grid" style="padding:4px 0 8px">'+(opts.length?opts.map(function(x){return '<button type="button" class="tile" data-pick="'+x.id+'"><span class="face" style="'+face(x)+'">'+faceTxt(x)+'<span class="badge g">DESVETADO</span></span><span class="tname">'+esc(nm(x))+'</span><span class="tsub">'+x.vetos.length+(x.vetos.length>1?" vetos":" veto")+' · desvetado el '+fmt(last(x).hasta)+'</span></button>'}).join(""):'<div class="empty">No hay desvetados que coincidan.</div>')+'</div>';
+      '<div class="grid" style="padding:4px 0 8px">'+(opts.length?opts.map(function(x){return '<button type="button" class="tile" data-pick="'+x.id+'"><span class="face" style="'+face(x)+'">'+faceTxt(x)+'<span class="badge g">DESVETADO</span></span><span class="tname">'+(named(x)?esc(x.name):'&nbsp;')+'</span><span class="tsub">'+x.vetos.length+(x.vetos.length>1?" vetos":" veto")+' · desvetado el '+fmt(last(x).hasta)+'</span></button>'}).join(""):'<div class="empty">No hay desvetados que coincidan.</div>')+'</div>';
   }
   if(p){h+='<div class="card" style="flex-direction:row;align-items:center;gap:12px"><span class="hface" style="'+face(p)+'">'+faceTxt(p)+'</span><span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><b>'+esc(nm(p))+'</b><span class="tsub">Desvetado el '+fmt(last(p).hasta)+'</span>'+(f.fromDetail?'':'<button type="button" data-pick="" style="align-self:flex-start;border:0;background:none;padding:4px 0;color:var(--navy3);font-weight:600;font-size:13px;text-decoration:underline">Cambiar persona</button>')+'</span><span class="tag r" style="font-size:11px">Será '+nth+'° veto</span></div>'}
   if(f.mode==="nueva"||p){
@@ -196,21 +197,12 @@ function shareText(p){var v=last(p),n=p.vetos.length;
   L2.push("Vetado en: "+locText(v));if(v.motivo)L2.push("Motivo: "+v.motivo);if(v.lugar)L2.push("Lugar: "+v.lugar);
   L2.push("","¿Aún sigue vetado?");return L2.join("\n")}
 function vShare(){
-  var p=find(S.id),v=last(p),n=p.vetos.length,t=shareText(p);
   return '<div class="overlay" data-closeshare="1"><div class="sheet" role="dialog" aria-label="Compartir ficha">'+
    '<div class="row between"><b style="font-size:16px">Compartir ficha</b><button class="iconbtn" data-closeshare="1" aria-label="Cerrar" style="background:var(--chip);color:var(--fg)">'+IC.close+'</button></div>'+
-   '<div class="scard"><div class="row" style="padding:12px 14px;gap:10px"><img class="logo sm" alt="" src="'+ICON+'\"><span style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#B9C7DA">Squadra · Ficha de veto</span></div>'+
-   '<div class="hero" style="height:200px;border-radius:0;'+(p.photos.length||p.thumb?"background-image:url("+(p.photos[0]||p.thumb)+")":"background:"+p.color)+'">'+faceTxt(p)+'</div>'+
-   '<div style="padding:14px;display:flex;flex-direction:column;gap:8px"><div class="row" style="gap:6px;flex-wrap:wrap"><span class="pill r">VETADO</span>'+(n>1?'<span class="pill w">'+n+'° veto</span>':'')+'</div>'+
-   '<span style="font-family:var(--display);font-weight:800;font-size:22px">'+esc(nm(p))+'</span>'+
-   '<div class="two" style="gap:8px"><span><span style="font-size:11px;color:#B9C7DA;display:block">Vetado desde</span><b>'+fmt(v.desde)+'</b></span><span><span style="font-size:11px;color:#B9C7DA;display:block">Se desveta</span><b>'+(v.hasta?fmt(v.hasta):"Sin definir")+'</b></span></div>'+
-   '<span><span style="font-size:11px;color:#B9C7DA;display:block">Motivo</span>'+esc(v.motivo)+'</span>'+(v.lugar?'<span><span style="font-size:11px;color:#B9C7DA;display:block">Lugar</span>'+esc(v.lugar)+'</span>':'')+
-   '<span style="margin-top:4px;padding-top:10px;border-top:1px solid #2F5682;font-weight:700;font-size:16px">¿Aún sigue vetado?</span></div></div>'+
-   '<label class="field" for="stext">Mensaje que se envía<textarea id="stext" readonly style="height:150px;font-size:13px">'+esc(t)+'</textarea></label>'+
-   '<button class="btn" data-sharepic="1" style="background:#25D366;color:#063A1C">'+IC.share+'Compartir con foto</button>'+
-   '<a class="btn" href="https://wa.me/?text='+encodeURIComponent(t)+'" target="_blank" rel="noopener" style="background:var(--chip);color:var(--fg);text-decoration:none;height:48px;font-size:15px">Enviar solo el texto por WhatsApp</a>'+
-   '<button class="btn" data-copy="1" style="background:var(--chip);color:var(--fg);height:48px;font-size:15px" id="copybtn">Copiar mensaje</button>'+
-   '<span class="tsub" style="font-size:12px;text-align:center">"Compartir con foto" manda la imagen de la ficha con el mensaje. Usted escoge WhatsApp y el grupo.</span>'+
+   (S.shareImg?'<img src="'+S.shareImg+'" alt="Imagen de la ficha de veto" style="width:100%;border-radius:14px;display:block">':'<div class="empty"><div class="spin" style="margin:0 auto 10px"></div>Preparando la imagen…</div>')+
+   '<button class="btn" data-sharepic="1" style="background:#25D366;color:#063A1C"'+(S.shareImg?'':' disabled')+'>'+IC.share+'Compartir foto</button>'+
+   (S.shareImg&&!Backend.isNative()?'<a class="btn" href="'+S.shareImg+'" download="ficha-veto.png" style="background:var(--chip);color:var(--fg);text-decoration:none;height:48px;font-size:15px">Descargar imagen</a>':'')+
+   '<span class="tsub" style="font-size:12px;text-align:center">Se manda solo la imagen. Usted escoge WhatsApp y el grupo.</span>'+
   '</div></div>'}
 
 function vAccounts(){
@@ -300,7 +292,7 @@ document.addEventListener("click",function(e){
   if(d.logout){S.menu=false;Backend.logout();return}
   if(d.pwd){S.menu=false;go("pwd");return}
   if(d.sharepic){sharePicture();return}
-  if(d.share){S.share=true;render();return}
+  if(d.share){S.share=true;S.shareImg="";render();prepareShare();return}
   if(d.closeshare){S.share=false;S.zoom=false;render();return}
   if(d.copy){var txt=document.getElementById("stext"),cb=document.getElementById("copybtn");
     var ok=function(){cb.textContent="Mensaje copiado"},fb=function(){txt.focus();txt.select();cb.textContent="Mensaje seleccionado: cópielo"};
@@ -405,7 +397,7 @@ document.addEventListener("submit",function(e){
     if(hasta&&hasta<=f.desde){S.err="La fecha de desveto tiene que ser después de la fecha de veto.";render();return}
     var veto={desde:f.desde,hasta:hasta,motivo:f.motivo.trim(),lugar:f.lugar.trim(),locales:locs(f).slice()};
     var job=p?Backend.addVeto(p.id,p.vetos.concat([veto]),f.photos):Backend.createPerson({name:f.name.trim(),vetos:[veto],photos:f.photos});
-    var label=p?(p.vetos.length+1)+"° veto: "+nm(p):"Nuevo veto: "+(f.name.trim()||"Sin nombre");
+    var label=p?(p.vetos.length+1)+"° veto: "+nm(p):"Nuevo veto"+(f.name.trim()?": "+f.name.trim():"");
     save("Guardando veto…",job,function(id){S.form=null;S.tab="vetados";S.q="";S.mine[id]=Date.now();go("detail",{id:id,photo:0});ensurePhotos(find(id));notify(label)});
   }
 });
@@ -463,36 +455,36 @@ function wrap(g,text,x,y,maxW,lh,maxLines){var words=String(text).split(/\s+/),l
   for(var i=0;i<words.length;i++){var t=line?line+" "+words[i]:words[i];if(g.measureText(t).width>maxW&&line){g.fillText(line,x,y);y+=lh;line=words[i];if(++n>=maxLines-1){line+=" …";break}}else line=t}
   g.fillText(line,x,y);return y+lh}
 function fichaImage(p){
-  var v=last(p),n=p.vetos.length,W=900,H=1500,c=document.createElement("canvas");c.width=W;c.height=H;var g=c.getContext("2d");
+  var v=last(p),n=p.vetos.length,W=900,named=!!(p.name&&p.name.trim());
+  var H=120+900+70+(named?72:0)+110+130+40;
+  var c=document.createElement("canvas");c.width=W;c.height=H;var g=c.getContext("2d");
   return Promise.all([loadImg(p.photos[0]||p.thumb),loadImg(ICON).catch(function(){return null})]).then(function(r){
     var img=r[0],ic=r[1];
     g.fillStyle="#03264C";g.fillRect(0,0,W,H);
-    if(ic)g.drawImage(ic,40,34,72,72);
-    g.fillStyle="#B9C7DA";g.font="600 26px Inter, Arial, sans-serif";g.fillText("SQUADRA · FICHA DE VETO",130,82);
-    var s=Math.max(W/img.width,820/img.height);g.save();g.beginPath();g.rect(0,140,W,820);g.clip();
-    g.drawImage(img,(W-img.width*s)/2,140+(820-img.height*s)/2,img.width*s,img.height*s);g.restore();
-    var y=1030;g.fillStyle="#B42318";g.fillRect(40,y-44,170,56);g.fillStyle="#fff";g.font="700 30px Inter, Arial, sans-serif";g.fillText("VETADO",62,y-6);
-    if(n>1){g.fillStyle="#fff";g.fillRect(226,y-44,170,56);g.fillStyle="#03264C";g.fillText(n+"° veto",250,y-6)}
-    g.fillStyle="#fff";g.font="800 54px Montserrat, Arial, sans-serif";y=wrap(g,nm(p),40,y+80,W-80,60,2);
-    g.font="500 30px Inter, Arial, sans-serif";g.fillStyle="#B9C7DA";g.fillText("Vetado desde",40,y+10);g.fillText("Se desveta",470,y+10);
-    g.fillStyle="#fff";g.font="700 36px Inter, Arial, sans-serif";g.fillText(fmt(v.desde),40,y+56);g.fillText(v.hasta?fmt(v.hasta):"Sin definir",470,y+56);y+=110;
-    g.font="500 30px Inter, Arial, sans-serif";
-    if(v.motivo){g.fillStyle="#B9C7DA";g.fillText("Motivo",40,y);g.fillStyle="#fff";y=wrap(g,v.motivo,40,y+44,W-80,40,3)}
-    g.fillStyle="#B9C7DA";g.fillText("Vetado en",40,y);g.fillStyle="#fff";y=wrap(g,locText(v),40,y+44,W-80,40,2);
-    if(v.lugar){g.fillStyle="#B9C7DA";g.fillText("Lugar: "+v.lugar,40,y+6);y+=50}
-    g.fillStyle="#2F5682";g.fillRect(40,H-120,W-80,2);g.fillStyle="#fff";g.font="800 44px Montserrat, Arial, sans-serif";g.fillText("¿Aún sigue vetado?",40,H-56);
+    if(ic)g.drawImage(ic,40,26,68,68);
+    g.fillStyle="#B9C7DA";g.font="600 26px Inter, Arial, sans-serif";g.fillText("SQUADRA · FICHA DE VETO",126,72);
+    var s=Math.max(W/img.width,900/img.height);g.save();g.beginPath();g.rect(0,120,W,900);g.clip();
+    g.drawImage(img,(W-img.width*s)/2,120+(900-img.height*s)/2,img.width*s,img.height*s);g.restore();
+    var y=1080;g.font="700 30px Inter, Arial, sans-serif";
+    g.fillStyle="#B42318";g.fillRect(40,y-40,170,56);g.fillStyle="#fff";g.fillText("VETADO",62,y-2);
+    if(n>1){g.fillStyle="#fff";g.fillRect(226,y-40,170,56);g.fillStyle="#03264C";g.fillText(n+"° veto",250,y-2)}
+    y+=70;
+    if(named){g.fillStyle="#fff";g.font="800 54px Montserrat, Arial, sans-serif";g.fillText(p.name.trim().slice(0,28),40,y+20);y+=72}
+    g.font="500 30px Inter, Arial, sans-serif";g.fillStyle="#B9C7DA";g.fillText("Vetado desde",40,y+10);if(v.hasta)g.fillText("Se desveta",470,y+10);
+    g.fillStyle="#fff";g.font="700 38px Inter, Arial, sans-serif";g.fillText(fmt(v.desde),40,y+58);if(v.hasta)g.fillText(fmt(v.hasta),470,y+58);y+=110;
+    g.font="500 30px Inter, Arial, sans-serif";g.fillStyle="#B9C7DA";g.fillText("Vetado en",40,y+10);
+    g.fillStyle="#fff";g.font="700 34px Inter, Arial, sans-serif";wrap(g,locText(v),40,y+56,W-80,42,2);
     return c.toDataURL("image/png");
   });
 }
 function sharePicture(){
-  var p=find(S.id);if(!p)return;var text=shareText(p);
-  S.busy="Preparando la ficha…";render();
-  ensurePhotos(p,function(){
-    fichaImage(p).then(function(url){return Backend.shareImage(url,text)}).then(function(){S.busy="";render()},function(err){
-      S.busy="";render();if(err&&err.name==="AbortError")return;
-      notify("No se pudo compartir con foto. Use el botón de solo texto.")})
-  });
+  if(!S.shareImg)return;S.busy="Abriendo compartir…";render();
+  Backend.shareImage(S.shareImg,"").then(function(){S.busy="";render()},function(err){
+    S.busy="";render();if(err&&err.name==="AbortError")return;
+    notify(Backend.isNative()?"No se pudo compartir. Intente de nuevo.":"Este navegador no comparte imágenes: use Descargar imagen.")});
 }
+function prepareShare(){var p=find(S.id);if(!p)return;S.shareImg="";
+  ensurePhotos(p,function(){fichaImage(p).then(function(url){S.shareImg=url;render()},function(){S.share=false;render();notify("No se pudo preparar la imagen.")})})}
 
 /* Sesión y datos en vivo */
 var stopPeople=null,firstSnap=true;
