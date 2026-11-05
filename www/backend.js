@@ -18,10 +18,10 @@
     var ua = navigator.userAgent || "", tipo, detalle = "";
     var m = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/);
     if (native()) { tipo = "App Android"; detalle = m ? m[1].trim() : ""; }
-    else if (/iPhone/.test(ua)) tipo = "iPhone";
-    else if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) tipo = "iPad";
-    else if (/Android/.test(ua)) { tipo = "Celular Android (navegador)"; detalle = m ? m[1].trim() : ""; }
-    else tipo = "Computador";
+    else if (/iPhone/.test(ua)) tipo = "Página web en iPhone";
+    else if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) tipo = "Página web en iPad";
+    else if (/Android/.test(ua)) { tipo = "Página web en celular Android"; detalle = m ? m[1].trim() : ""; }
+    else tipo = "Página web en computador";
     var nav = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
     var so = /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua) ? "Mac" : /Linux/.test(ua) && !/Android/.test(ua) ? "Linux" : "";
     if (!native()) detalle = [detalle, nav, so].filter(Boolean).join(" · ");
@@ -69,19 +69,25 @@
     try { reg = localStorage.getItem("squadra.devreg") === uid; } catch(e) {}
     if (freshLogin || !reg) {
       freshLogin = false;
-      ref.set({ tipo: info.tipo, detalle: info.detalle, version: info.version, inicio: ts(), ultimoUso: ts() }).catch(function(){});
+      ref.set({ tipo: info.tipo, detalle: info.detalle, version: info.version, inicio: ts(), ultimoUso: ts(), enLinea: true }).catch(function(){});
       try { localStorage.setItem("squadra.devreg", uid); } catch(e) {}
     } else {
-      ref.update({ ultimoUso: ts(), version: info.version }).catch(function(){});
+      ref.update({ ultimoUso: ts(), version: info.version, enLinea: true, tipo: info.tipo, detalle: info.detalle }).catch(function(){});
     }
     // Si Soporte cierra la sesión de este dispositivo, se sale de inmediato.
     stopDev = ref.onSnapshot({ includeMetadataChanges: true }, function(d){
       if (!d.exists && !d.metadata.fromCache && !d.metadata.hasPendingWrites) B.logout("Soporte cerró la sesión en este dispositivo.", true);
     }, function(){});
+    // "En línea": se avisa cada 3 minutos mientras la app está abierta, y al cerrarla o dejarla en segundo plano.
     clearInterval(beat);
-    beat = setInterval(function(){ if (!document.hidden) ref.update({ ultimoUso: ts() }).catch(function(){}); }, 10 * 60 * 1000);
+    beat = setInterval(function(){ if (!document.hidden) ref.update({ ultimoUso: ts(), enLinea: true }).catch(function(){}); }, 3 * 60 * 1000);
+    curRef = ref;
   }
-  function stopDevice(){ if (stopDev) { stopDev(); stopDev = null; } clearInterval(beat); beat = null; }
+  var curRef = null;
+  function presence(on){ if (curRef) curRef.update(on ? { ultimoUso: ts(), enLinea: true } : { enLinea: false }).catch(function(){}); }
+  document.addEventListener("visibilitychange", function(){ presence(!document.hidden); });
+  window.addEventListener("pagehide", function(){ presence(false); });
+  function stopDevice(){ if (stopDev) { stopDev(); stopDev = null; } clearInterval(beat); beat = null; curRef = null; }
   B.onSession = function(cb){
     auth.onAuthStateChanged(function(user){
       if (stopMe) { stopMe(); stopMe = null; }
@@ -224,7 +230,7 @@
     });
   };
   function devConv(d){ var x = d.data(); return { id: d.id, uid: d.ref.parent.parent.id, tipo: x.tipo || "Dispositivo", detalle: x.detalle || "", version: x.version || 0,
-    inicio: x.inicio && x.inicio.toDate ? x.inicio.toDate().getTime() : 0, ultimoUso: x.ultimoUso && x.ultimoUso.toDate ? x.ultimoUso.toDate().getTime() : 0 }; }
+    enLinea: !!x.enLinea, inicio: x.inicio && x.inicio.toDate ? x.inicio.toDate().getTime() : 0, ultimoUso: x.ultimoUso && x.ultimoUso.toDate ? x.ultimoUso.toDate().getTime() : 0 }; }
   B.listDevices = function(){ return db.collectionGroup("dispositivos").get().then(function(s){ return s.docs.map(devConv); }); };
   B.closeDevice = function(uid, id){ return db.doc("cuentas/" + uid + "/dispositivos/" + id).delete(); };
   B.closeAllDevices = function(uid){
