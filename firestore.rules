@@ -54,6 +54,13 @@ service cloud.firestore {
       allow read: if soporte();
     }
 
+    // Registro de quién desvetó: lo escriben los administradores, solo lo lee Soporte y nadie lo borra
+    match /registro/{id} {
+      allow read: if soporte();
+      allow create: if admin() && request.resource.data.por == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     match /personas/{pid} {
       allow read: if activo();
       allow create, update: if admin();

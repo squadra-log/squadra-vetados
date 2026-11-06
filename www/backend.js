@@ -33,7 +33,7 @@
   if (typeof firebase === "undefined") {
     // Sin la librería de Firebase no se puede hacer nada: se muestra un aviso claro.
     B.onSession = function(cb){ setTimeout(function(){ cb(null, "No hay conexión a internet. Revise la conexión y vuelva a abrir la app."); }, 0); };
-    ["needsSetup","login","setup","logout","watchPeople","getPhotos","createPerson","addVeto","setVetos","updatePerson","deletePerson","listAccounts","createAccount","updateAccount","deleteAccount","changePassword","shareImage","listDevices","closeDevice","closeAllDevices","resetPassword","saveLocales"].forEach(function(k){
+    ["needsSetup","login","setup","logout","watchPeople","getPhotos","createPerson","addVeto","setVetos","updatePerson","deletePerson","listAccounts","createAccount","updateAccount","deleteAccount","changePassword","shareImage","listDevices","closeDevice","closeAllDevices","resetPassword","saveLocales","getLog"].forEach(function(k){
       B[k] = function(){ return Promise.reject(new Error("offline")); };
     });
     B.needsSetup = function(){ return Promise.resolve(false); };
@@ -185,7 +185,27 @@
     b.update(ref, upd);
     return b.commit().then(function(){ return id; });
   };
-  B.setVetos = function(id, vetos){ return db.doc("personas/" + id).update({ vetos: vetos, actualizado: ts() }); };
+  /* Registro de quién desvetó (solo lo puede leer Soporte) */
+  function addLog(b, pid, log){
+    if (!log || !auth.currentUser) return;
+    b.set(db.collection("registro").doc(), { pid: pid, tipo: log.tipo, detalle: log.detalle || "", por: auth.currentUser.uid, usuario: log.usuario || "", nombre: log.nombre || "", cuando: ts() });
+  }
+  B.setVetos = function(id, vetos, log){
+    var b = db.batch();
+    b.update(db.doc("personas/" + id), { vetos: vetos, actualizado: ts() });
+    addLog(b, id, log);
+    return b.commit().catch(function(e){
+      // Si las reglas del registro aún no están publicadas, igual se guarda el desveto
+      if (log && /permission/.test((e && e.code) || "")) return B.setVetos(id, vetos, null);
+      throw e;
+    });
+  };
+  B.getLog = function(pid){
+    return db.collection("registro").where("pid", "==", pid).get().then(function(s){
+      return s.docs.map(function(d){ var x = d.data(); return { tipo: x.tipo, detalle: x.detalle, usuario: x.usuario, nombre: x.nombre, cuando: x.cuando && x.cuando.toMillis ? x.cuando.toMillis() : 0 }; })
+        .sort(function(a, b){ return b.cuando - a.cuando; });
+    });
+  };
   B.updatePerson = function(id, o){
     var ref = db.doc("personas/" + id);
     var work = o.photosChanged ? thumbOf(o.photos[0]) : Promise.resolve(null);
@@ -202,7 +222,11 @@
         });
       }
       b.update(ref, upd);
-      return b.commit();
+      addLog(b, id, o.log);
+      return b.commit().catch(function(e){
+        if (o.log && /permission/.test((e && e.code) || "")) { var o2 = Object.assign({}, o, { log: null }); return B.updatePerson(id, o2); }
+        throw e;
+      });
     });
   };
   B.deletePerson = function(id){
