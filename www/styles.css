@@ -164,9 +164,8 @@ h1{margin:0;font-family:var(--display);font-weight:800;font-size:24px;text-wrap:
 @keyframes bb{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
 @media (prefers-reduced-motion:reduce){.bootbar::after{animation:none;width:100%;opacity:.6}}
 
-.selhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 16px 0;padding:8px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:13px;color:var(--muted)}
-.selhead b{color:var(--fg)}
-.selbtn{border:0;border-radius:18px;height:34px;padding:0 14px;font-weight:700;background:#03264C;color:#fff;white-space:nowrap}
+.selline{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin:0 16px -6px;font-size:12px;color:var(--muted)}
+.lnk{border:0;background:none;padding:4px 2px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 .tile.pick{position:relative}
 .tile.pick .face{transition:transform .12s}
 .tile.picked .face{outline:3px solid #16A34A;outline-offset:2px;transform:scale(.94)}
