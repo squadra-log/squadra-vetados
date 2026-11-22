@@ -56,6 +56,15 @@ function vLog(pid){
   return '<div class="card" style="gap:8px"><span class="lbl">Quién desvetó · solo lo ve Soporte</span>'+
    (l===undefined?'<span class="tsub">Cargando…</span>':l==="error"?'<span class="tsub">No se pudo cargar. Revise que las reglas nuevas estén publicadas en Firebase.</span>':
     l.length?l.map(function(x){return '<div style="display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--line)"><span style="font-weight:600;font-size:14px">'+esc(x.detalle)+'</span><span class="tsub">Por <b style="color:var(--fg)">'+esc(x.nombre||"—")+'</b> ('+esc(x.usuario||"—")+') · '+(x.cuando?fmtTime(x.cuando):"ahora")+'</span></div>'}).join(""):'<span class="tsub">Todavía nadie ha desvetado a esta persona desde la app.</span>')+'</div>'}
+function isSop(){return !!(S.me&&S.me.role==="supremo")}
+function quickVetos(p){var nv=p.vetos.map(function(x){return Object.assign({},x)}),lv=nv[nv.length-1];lv.hasta=TODAY<lv.desde?lv.desde:TODAY;return nv}
+function quickLog(){return whoLog("rapido","Desvetado de una por Soporte, en todos los locales")}
+function quickDesvetar(ids){
+  var ps=ids.map(find).filter(function(p){return p&&active(p)});if(!ps.length)return;
+  var n=ps.length;S.selMode=false;S.sel={};
+  save(n===1?"Desvetando…":"Desvetando "+n+" personas…",Promise.all(ps.map(function(p){return Backend.setVetos(p.id,quickVetos(p),quickLog())})),function(){
+    ps.forEach(function(p){if(S.logs)delete S.logs[p.id]});if(S.view==="detail")loadLog(S.id);
+    notify(n===1?"Desvetado: "+nm(ps[0]):n+" personas desvetadas")})}
 function partText(v){return (v.parciales||[]).map(function(x){return "Desvetado en "+locText({locales:x.locales},true)+" el "+fmt(x.fecha)})}
 function curLocKeys(v){var l=locs(v);return l.indexOf("todos")>=0?LOCALES.map(function(o){return o.k}):l.filter(function(k){return LOCALES.some(function(o){return o.k===k})})}
 function toggleLoc(arr,k){if(k==="todos")return ["todos"];var a=arr.filter(function(x){return x!=="todos"});var i=a.indexOf(k);if(i>=0)a.splice(i,1);else a.push(k);return a.length?a:["todos"]}
@@ -85,7 +94,7 @@ var IC={
  pin:'<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'
 };
 
-function go(view,extra){S.view=view;S.err="";S.share=false;S.zoom=false;if(extra)for(var k in extra)S[k]=extra[k];render();var ph=document.getElementById("phone");window.scrollTo(0,0);}
+function go(view,extra){S.view=view;S.confirmQuick=null;if(view!=="list"){S.selMode=false;S.sel={}}S.err="";S.share=false;S.zoom=false;if(extra)for(var k in extra)S[k]=extra[k];render();var ph=document.getElementById("phone");window.scrollTo(0,0);}
 function notify(t){var n=document.getElementById("notif");document.getElementById("notiftext").textContent=t;n.classList.add("show");clearTimeout(notify.t);notify.t=setTimeout(function(){n.classList.remove("show")},3800)}
 function header(title,backView,backLabel){return '<div class="top"><div class="row between"><div class="row"><button class="iconbtn" data-go="'+backView+'" aria-label="'+(backLabel||"Volver")+'">'+(backLabel==="Cancelar"?IC.close:IC.back)+'</button><h1>'+esc(title)+'</h1></div><img class="logo sm" alt="Squadra" src="'+ICON+'\"></div></div>'}
 
@@ -139,6 +148,8 @@ function vList(){
    (admin?'<span class="role admin">'+(S.me.role==="supremo"?"SOPORTE":"ADMINISTRADOR")+' · '+esc(S.me.name).toUpperCase()+'</span>':'<span class="role view">CONSULTA · '+esc(S.me.name).toUpperCase()+'</span>')+
    '<label class="search" for="q">'+IC.search+'<input id="q" type="search" placeholder="Buscar por nombre" value="'+esc(S.q)+'"></label></div>';
   h+='<div class="locs" role="group" aria-label="Local">'+LOCALES.concat([{k:"todos",t:"Todos"}]).map(function(o){var n=S.people.filter(function(p){return inLocal(p,o.k)&&active(p)}).length;return '<button class="loc" data-loc="'+o.k+'" aria-pressed="'+(S.loc===o.k)+'"><span class="lt">'+o.t+' <span class="ln">'+n+'</span></span></button>'}).join("")+'</div>';
+  var selOn=isSop()&&S.selMode&&S.tab==="vetados";
+  if(isSop()&&S.tab==="vetados"&&S.ready)h+='<div class="selhead">'+(selOn?'<span><b>Toque las fotos</b> de quienes quiere desvetar</span><button class="selbtn" data-selmode="0">Cancelar</button>':'<span>Soporte: desvetar varios de una</span><button class="selbtn" data-selmode="1">Seleccionar</button>')+'</div>';
   h+='<div class="tabs" role="group" aria-label="Estado">'+["vetados","desvetados","todos"].map(function(t){return '<button class="tab" data-tab="'+t+'" aria-pressed="'+(S.tab===t)+'">'+t[0].toUpperCase()+t.slice(1)+'</button>'}).join("")+'</div>';
   var word=S.tab==="todos"?(ps.length===1?"persona":"personas"):(ps.length===1?S.tab.slice(0,-1):S.tab);
   h+='<div class="count">'+ps.length+' '+word+(S.loc!=="todos"?' en <b>'+esc(LOCALES.filter(function(o){return o.k===S.loc})[0].full)+'</b>':'')+' · por <b>'+sortLbl+'</b>, más reciente primero'+(S.tab==="vetados"&&soon&&!q?'<br><span style="color:var(--greentext);font-weight:600">'+soon+(soon===1?" se desveta":" se desvetan")+' en los próximos 7 días</span>':'')+'</div><div class="grid">';
@@ -148,9 +159,12 @@ function vList(){
     var md=(S.tab==="desvetados"?v.hasta:v.desde)||"",mk=md.slice(0,7);
     if(mk&&mk!==lastMonth){lastMonth=mk;var cnt=ps.filter(function(x){var y=last(x);return ((S.tab==="desvetados"?y.hasta:y.desde)||"").slice(0,7)===mk}).length;
       h+='<div class="month"><span>'+MESES[+mk.slice(5,7)-1]+' '+mk.slice(0,4)+'</span><span class="mc">'+cnt+'</span></div>'}
-    h+='<button class="tile" data-open="'+p.id+'"><span class="face" style="'+face(p)+'">'+faceTxt(p)+(n>1&&a?'<span class="nth">'+n+'° veto</span>':'')+'<span class="badge '+(a?"r":"g")+'">'+(a?"VETADO":"DESVETADO")+'</span></span><span class="tname">'+(named(p)?esc(p.name):'&nbsp;')+'</span><span class="tsub">'+(a?"desde "+fmt(v.desde):"desde "+fmt(v.hasta))+'</span>'+(a&&v.hasta&&days(TODAY,v.hasta)<=7?'<span class="tsub" style="color:var(--greentext);font-weight:600">sale en '+span(days(TODAY,v.hasta))+'</span>':'')+(S.loc==="todos"&&a?'<span class="tloc">'+esc(locText(v,true))+'</span>':'')+'</button>'});
+    var picked=selOn&&S.sel&&S.sel[p.id];
+    h+='<button class="tile'+(selOn?' pick':'')+(picked?' picked':'')+'" '+(selOn?'data-qpick="'+p.id+'" aria-pressed="'+!!picked+'"':'data-open="'+p.id+'"')+'>'+(selOn?'<span class="chk">'+(picked?'✓':'')+'</span>':'')+'<span class="face" style="'+face(p)+'">'+faceTxt(p)+(n>1&&a?'<span class="nth">'+n+'° veto</span>':'')+'<span class="badge '+(a?"r":"g")+'">'+(a?"VETADO":"DESVETADO")+'</span></span><span class="tname">'+(named(p)?esc(p.name):'&nbsp;')+'</span><span class="tsub">'+(a?"desde "+fmt(v.desde):"desde "+fmt(v.hasta))+'</span>'+(a&&v.hasta&&days(TODAY,v.hasta)<=7?'<span class="tsub" style="color:var(--greentext);font-weight:600">sale en '+span(days(TODAY,v.hasta))+'</span>':'')+(S.loc==="todos"&&a?'<span class="tloc">'+esc(locText(v,true))+'</span>':'')+'</button>'});
   h+='</div>';
-  if(admin)h+='<button class="fab" data-new="1">'+IC.plus+'Nuevo veto</button>';
+  if(selOn){var ns=Object.keys(S.sel||{}).length;
+    h+='<div class="selbar"><button class="btn green" data-quick="sel"'+(ns?'':' disabled')+'>'+(ns?(S.confirmQuick==="sel"?'Toque otra vez para desvetar '+ns:'Desvetar '+ns+(ns===1?' persona':' personas')+' ya'):'Seleccione al menos una')+'</button></div>'}
+  else if(admin)h+='<button class="fab" data-new="1">'+IC.plus+'Nuevo veto</button>';
   return h;
 }
 
@@ -177,6 +191,7 @@ function vDetail(){
   var list=p.vetos.map(function(x,k){return {x:x,k:k}}).reverse();
   h+=vLog(p.id);
   h+='<div class="card" style="gap:12px"><span class="lbl">Vetos de esta persona ('+n+')</span>'+list.map(function(o){var on=a&&o.k===n-1;return '<div class="vrow"><span class="num'+(on?" on":"")+'">'+(o.k+1)+'°</span><span style="display:flex;flex-direction:column;gap:2px"><span class="t">'+fmt(o.x.desde)+' → '+(o.x.hasta?fmt(o.x.hasta):"sin definir")+'</span><span class="s">Duración: '+(o.x.hasta?span(days(o.x.desde,o.x.hasta)):(days(o.x.desde,TODAY)===0?"sin definir (empezó hoy)":"sin definir (lleva "+span(days(o.x.desde,TODAY))+")"))+'</span><span class="s">Vetado en: '+esc(locText(o.x,true))+'</span>'+partText(o.x).map(function(t){return '<span class="s" style="color:var(--greentext)">'+esc(t)+'</span>'}).join("")+''+(o.x.motivo?'<span class="s">Motivo: '+esc(o.x.motivo)+'</span>':'')+(o.x.lugar?'<span class="s">Lugar: '+esc(o.x.lugar)+'</span>':'')+'</span></div>'}).join("")+'</div>';
+  if(isSop()&&a)h+='<button class="btn green" data-quick="one" style="height:52px">'+(S.confirmQuick==="one"?'Toque otra vez para confirmar':'Desvetar ya en todos los locales')+'</button><span class="tsub" style="text-align:center;font-size:12px;margin-top:-6px">Solo Soporte · queda desvetado hoy, sin fecha ni motivo</span>';
   if(admin&&a){
     var cur=curLocKeys(v),dsel=S.dsel&&S.dselFor===p.id?S.dsel:["todos"],dall=dsel.indexOf("todos")>=0;
     h+='<div class="card" style="gap:10px"><span class="lbl">Desvetar</span>'+
@@ -380,10 +395,15 @@ document.addEventListener("click",function(e){
   if(d.go==="accounts"){e.preventDefault();openAccounts();return}
   if(d.go){e.preventDefault();go(d.go);return}
   if(d.role){S.role=d.role;S.tab="vetados";S.q="";go("list");return}
-  if(d.tab){S.tab=d.tab;render();return}
+  if(d.tab){S.tab=d.tab;S.selMode=false;S.sel={};render();return}
   if(d.loc){S.loc=d.loc;try{localStorage.setItem("squadra.loc",d.loc)}catch(_){}render();return}
   if(d.floc){syncForm();S.form.locales=toggleLoc(locs(S.form),d.floc);render();return}
   if(d.eloc){syncEdit();var ev=S.edit.vetos[S.edit.vk];ev.locales=toggleLoc(locs(ev),d.eloc);render();return}
+  if(d.selmode){S.selMode=d.selmode==="1";S.sel={};S.confirmQuick=null;render();return}
+  if(d.qpick){S.sel=S.sel||{};if(S.sel[d.qpick])delete S.sel[d.qpick];else S.sel[d.qpick]=1;S.confirmQuick=null;render();return}
+  if(d.quick){if(!isSop())return;
+    if(S.confirmQuick!==d.quick){S.confirmQuick=d.quick;render();clearTimeout(S.cqT);S.cqT=setTimeout(function(){S.confirmQuick=null;render()},4000);return}
+    S.confirmQuick=null;clearTimeout(S.cqT);quickDesvetar(d.quick==="one"?[S.id]:Object.keys(S.sel||{}));return}
   if(d.open){go("detail",{id:d.open,photo:0});ensurePhotos(find(d.open));loadLog(d.open);return}
   if(d.photo){S.photo=+d.photo;render();return}
   if(d["new"]){S.form=newForm({});go("form");return}
@@ -635,6 +655,7 @@ function appBack(){
   if(S.crop){S.crop=null;render();return}
   if(S.zoom||S.share||S.menu){S.zoom=false;S.share=false;S.menu=false;render();return}
   var V=S.view;
+  if(V==="list"&&S.selMode){S.selMode=false;S.sel={};render();return}
   if(V==="edit"){S.edit=null;go("detail");return}
   if(V==="form"){var fd=S.form&&S.form.fromDetail;S.form=null;go(fd?"detail":"list");return}
   if(V==="accform"){S.acc=null;go("accounts");return}
